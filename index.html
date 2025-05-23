@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>運彩獲利計算模板</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* CSS for printing only the history section */
+        @media print {
+            body > *:not(#print-area) { /* Hide all direct children of body except the print area */
+                display: none !important;
+            }
+            #print-area { /* Ensure the print area is visible and takes full width */
+                display: block !important;
+                width: 100% !important;
+                margin: 0 !important;
+                padding: 0 !important;
+            }
+            /* Adjust table and text within print area for better print layout */
+            #print-area table {
+                width: 100%;
+                border-collapse: collapse;
+            }
+            #print-area th, #print-area td {
+                border: 1px solid #ddd;
+                padding: 8px;
+                text-align: left;
+            }
+            #print-area h2 {
+                text-align: center;
+                margin-bottom: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <script type="text/babel">
+        // Main App component for the Sports Betting Profit Calculator
+        function App() {
+            // State variables to store input values and calculation result for main calculator
+            const [betAmount, setBetAmount] = React.useState(''); // 投注金額
+            const [odds, setOdds] = React.useState('');           // 賠率
+            const [singleBetResult, setSingleBetResult] = React.useState(null); // 單次投注計算結果 (獲利/虧損)
+            const [errorMessage, setErrorMessage] = React.useState(''); // 錯誤訊息
+            const [betHistory, setBetHistory] = React.useState([]); // 投注紀錄
+
+            // State variables for date filtering
+            const [startDate, setStartDate] = React.useState(''); // 開始日期
+            const [endDate, setEndDate] = React.useState('');     // 結束日期
+
+            // State for target profit calculation
+            const [targetProfitAmount, setTargetProfitAmount] = React.useState(''); // 目標獲利金額
+            const [requiredBetForTargetProfit, setRequiredBetForTargetProfit] = React.useState(null); // 為達到目標獲利所需投注金額
+
+            // Suggestions for single bet loss preview
+            const singleBetLossSuggestions = [
+                "勝敗乃兵家常事，再接再厲！",
+                "不要氣餒，下次會更好！",
+                "換個角度思考，或許能找到新的機會！",
+                "分析更多資訊，保持冷靜的頭腦！",
+                "運氣也是實力的一部分，保持信心！",
+                "短期的波動不代表長期趨勢，堅持您的策略！",
+                "休息一下，或許能看得更清楚！",
+            ];
+
+            // New: General advice for overall profit
+            const generalProfitAdvice = [
+                "恭喜您！持續保持良好的策略和紀律。",
+                "穩健獲利是長期成功的基石，繼續加油！",
+                "您的努力得到了回報，繼續精進！",
+                "謹慎管理您的資金，讓獲利持續增長。",
+                "祝您財源廣進，好運連連！",
+            ];
+
+            // New: General advice for overall loss
+            const generalLossAdvice = [
+                "別氣餒，每一次虧損都是學習的機會。",
+                "重新檢視您的策略，找出可以改進的地方。",
+                "控制風險是首要任務，保護您的本金。",
+                "暫時休息一下，讓思緒沉澱再出發。",
+                "分析失利原因，避免重蹈覆轍。",
+                "調整心態，堅持理性判斷。",
+            ];
+
+            // New: General advice for overall break-even or neutral
+            const generalNeutralAdvice = [
+                "收支平衡也是一種成功，保持穩定。",
+                "持續觀察市場，等待更好的機會。",
+                "保持耐心，策略的有效性需要時間驗證。",
+                "這是一個穩定的階段，可以考慮微調策略。",
+            ];
+
+            // Function to perform instant calculation based on current inputs
+            const calculateInstantResults = React.useCallback(() => {
+                const parsedBetAmount = parseFloat(betAmount);
+                const parsedOdds = parseFloat(odds);
+                const parsedTargetProfitAmount = parseFloat(targetProfitAmount);
+
+                // --- Calculate for Single Bet Result (Potential Win) ---
+                if (isNaN(parsedBetAmount) || parsedBetAmount <= 0 || isNaN(parsedOdds) || parsedOdds < 1) {
+                    setSingleBetResult(null);
+                } else {
+                    // Only calculate potential profit if won
+                    const potentialProfitIfWon = (parsedBetAmount * parsedOdds) - parsedBetAmount;
+                    setSingleBetResult(potentialProfitIfWon.toFixed(2));
+                }
+
+                // --- Calculate Required Bet for Target Profit ---
+                if (isNaN(parsedTargetProfitAmount) || parsedTargetProfitAmount <= 0 || isNaN(parsedOdds) || parsedOdds < 1 || (parsedOdds - 1) <= 0) {
+                    setRequiredBetForTargetProfit(null);
+                } else {
+                    // Formula: Required Bet = Target Profit / (Odds - 1)
+                    const requiredBet = parsedTargetProfitAmount / (parsedOdds - 1);
+                    setRequiredBetForTargetProfit(requiredBet.toFixed(2));
+                }
+
+            }, [betAmount, odds, targetProfitAmount]); // Dependencies adjusted
+
+            // Use useEffect to trigger instant calculation whenever relevant inputs change
+            React.useEffect(() => {
+                calculateInstantResults();
+            }, [betAmount, odds, targetProfitAmount, calculateInstantResults]); // Dependencies adjusted
+
+            // Load bet history from localStorage when component mounts
+            React.useEffect(() => {
+                try {
+                    const storedHistory = localStorage.getItem('betHistory');
+                    if (storedHistory) {
+                        setBetHistory(JSON.parse(storedHistory));
+                    }
+                } catch (error) {
+                    console.error("Failed to load bet history from localStorage:", error);
+                    setErrorMessage("載入紀錄失敗，請檢查瀏覽器設定。");
+                }
+            }, []); // Empty dependency array means this runs once on mount
+
+            // Save bet history to localStorage whenever betHistory changes
+            React.useEffect(() => {
+                try {
+                    localStorage.setItem('betHistory', JSON.stringify(betHistory));
+                } catch (error) {
+                    console.error("Failed to save bet history to localStorage:", error);
+                    setErrorMessage("儲存紀錄失敗，請檢查瀏覽器儲存空間。");
+                }
+            }, [betHistory]); // Runs whenever betHistory state changes
+
+            // Function to handle the "新增紀錄" button click (adds to history)
+            const handleAddRecordButtonClick = () => {
+                // Clear previous error messages
+                setErrorMessage('');
+
+                const parsedBetAmount = parseFloat(betAmount);
+                const parsedOdds = parseFloat(odds);
+
+                // Input validation before adding to history
+                if (isNaN(parsedBetAmount) || parsedBetAmount <= 0) {
+                    setErrorMessage('請輸入有效的投注金額 (必須是正數)。');
+                    return;
+                }
+                if (isNaN(parsedOdds) || parsedOdds < 1) {
+                    setErrorMessage('請輸入有效的賠率 (必須大於或等於 1)。');
+                    return;
+                }
+
+                // --- 更新投注紀錄 ---
+                const newBetRecord = {
+                    id: Date.now(), // Unique ID for React list key
+                    betAmount: parsedBetAmount,
+                    odds: parsedOdds,
+                    outcome: null, // Initial outcome is null, set when settled
+                    profitLoss: 0, // Initial profit/loss is 0, calculated when settled
+                    date: new Date().toISOString().split('T')[0], // Store current date inYYYY-MM-DD format
+                    status: 'pending', // New: Initial status is pending
+                };
+
+                setBetHistory(prevHistory => {
+                    const updatedHistory = [...prevHistory, newBetRecord];
+                    return updatedHistory;
+                });
+
+                // Optionally clear inputs after adding to history
+                setBetAmount('');
+                setOdds('');
+                setErrorMessage(''); // Clear error message if any
+            };
+
+            // New function to update the status of a bet in history
+            const updateBetStatus = (id, finalOutcome) => {
+                setBetHistory(prevHistory => {
+                    return prevHistory.map(record => {
+                        if (record.id === id) {
+                            let updatedProfitLoss = 0;
+                            if (finalOutcome === 'win') {
+                                updatedProfitLoss = (record.betAmount * record.odds) - record.betAmount;
+                            } else if (finalOutcome === 'loss') {
+                                updatedProfitLoss = -record.betAmount;
+                            }
+                            return {
+                                ...record,
+                                outcome: finalOutcome, // Update the outcome to the final one
+                                profitLoss: updatedProfitLoss,
+                                status: finalOutcome, // Set status to 'win' or 'loss'
+                            };
+                        }
+                        return record;
+                    });
+                });
+            };
+
+            // Memoized filtered history based on date range
+            const filteredBetHistory = React.useMemo(() => {
+                return betHistory.filter(record => {
+                    const recordDate = new Date(record.date);
+                    const start = startDate ? new Date(startDate) : null;
+                    const end = endDate ? new Date(endDate) : null;
+
+                    // Ensure end date includes the entire day
+                    if (end) {
+                        end.setHours(23, 59, 59, 999);
+                    }
+
+                    const isAfterStartDate = !start || recordDate >= start;
+                    const isBeforeEndDate = !end || recordDate <= end;
+
+                    return isAfterStartDate && isBeforeEndDate;
+                });
+            }, [betHistory, startDate, endDate]);
+
+            // Calculate total profit/loss from the filtered records, only for settled bets
+            const totalProfitLossFiltered = filteredBetHistory.reduce((sum, record) => {
+                if (record.status === 'win' || record.status === 'loss') {
+                    return sum + record.profitLoss;
+                }
+                return sum;
+            }, 0).toFixed(2);
+
+            // New: Calculate win/loss counts and average win rate from filtered history
+            const { totalWins, totalLosses, averageWinRate } = React.useMemo(() => {
+                let wins = 0;
+                let losses = 0;
+                filteredBetHistory.forEach(record => {
+                    if (record.status === 'win') {
+                        wins++;
+                    } else if (record.status === 'loss') {
+                        losses++;
+                    }
+                });
+                const totalSettledBets = wins + losses;
+                const avgWinRate = totalSettledBets > 0 ? ((wins / totalSettledBets) * 100).toFixed(2) : '0.00';
+                return { totalWins: wins, totalLosses: losses, averageWinRate: avgWinRate };
+            }, [filteredBetHistory]);
+
+
+            // Function to reset all input fields and results
+            const resetFields = () => {
+                setBetAmount('');
+                setOdds('');
+                setSingleBetResult(null);
+                setErrorMessage('');
+                setBetHistory([]); // Clear history on reset
+                setStartDate(''); // Clear date filters
+                setEndDate('');   // Clear date filters
+                setTargetProfitAmount(''); // Reset target profit input
+                setRequiredBetForTargetProfit(null); // Reset required bet for target profit
+                try {
+                    localStorage.removeItem('betHistory'); // Also clear from localStorage
+                } catch (error) {
+                    console.error("Failed to clear bet history from localStorage:", error);
+                }
+            };
+
+            // Function to export filtered history to CSV
+            const exportToCsv = () => {
+                if (filteredBetHistory.length === 0) {
+                    setErrorMessage('沒有紀錄可以導出。');
+                    return;
+                }
+
+                const headers = ["日期", "投注金額", "賠率", "結果", "獲利/虧損"];
+                const csvRows = [];
+
+                // Add headers
+                csvRows.push(headers.join(','));
+
+                // Add data rows
+                filteredBetHistory.forEach(record => {
+                    const row = [
+                        record.date,
+                        record.betAmount,
+                        record.odds,
+                        record.status === 'pending' ? '待定' : (record.outcome === 'win' ? '贏' : '輸'),
+                        record.status === 'pending' ? '待定' : record.profitLoss.toFixed(2)
+                    ];
+                    csvRows.push(row.join(','));
+                });
+
+                // Add the total profit/loss row at the end
+                csvRows.push(''); // Add an empty row for separation
+                csvRows.push(`篩選後總獲利/虧損:,${totalProfitLossFiltered} NTD`);
+                csvRows.push(`總勝場:,${totalWins}`);
+                csvRows.push(`總敗場:,${totalLosses}`);
+                csvRows.push(`平均勝率:,${averageWinRate}%`);
+
+
+                const csvString = csvRows.join('\n');
+                // Prepend BOM to the CSV string for proper UTF-8 interpretation in Excel
+                const blob = new Blob(['\ufeff' + csvString], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = `運彩紀錄_${new Date().toISOString().split('T')[0]}.csv`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(link.href); // Clean up the URL object
+            };
+
+            // Function to trigger browser print for only the history section
+            const handlePrintRecordsOnly = () => {
+                const printContent = document.getElementById('bet-history-section');
+                if (!printContent) {
+                    setErrorMessage('找不到投注紀錄區塊進行列印。');
+                    return;
+                }
+
+                // Construct the HTML content for the new print window
+                let printContentHtml = `
+                    <!DOCTYPE html>
+                    <html lang="zh-TW">
+                    <head>
+                        <meta charset="UTF-8">
+                        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                        <title>投注紀錄列印</title>
+                        <style>
+                            body { font-family: 'Inter', sans-serif; margin: 20px; }
+                            h2 { text-align: center; margin-bottom: 20px; font-size: 1.5em; }
+                            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+                            th { background-color: #f2f2f2; }
+                            .profit-text { color: #16A34A; font-weight: bold; } /* green-600 */
+                            .loss-text { color: #DC2626; font-weight: bold; } /* red-600 */
+                            .blue-text { color: #2563EB; font-weight: bold; } /* blue-600 */
+                            .red-text { color: #DC2626; font-weight: bold; } /* red-600 */
+                            .outcome-badge {
+                                display: inline-block;
+                                padding: 4px 8px;
+                                border-radius: 9999px;
+                                font-weight: 600;
+                                font-size: 0.8em;
+                                line-height: 1;
+                            }
+                            .win-badge { background-color: #D1FAE5; color: #065F46; } /* green-100, green-800 */
+                            .loss-badge { background-color: #FEE2E2; color: #991B1B; } /* red-100, red-800 */
+                        </style>
+                        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+                    </head>
+                    <body>
+                        <h2>投注紀錄</h2>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>日期</th>
+                                    <th>金額</th>
+                                    <th>賠率</th>
+                                    <th>結果</th>
+                                    <th>獲利/虧損</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${filteredBetHistory.map(record => `
+                                    <tr>
+                                        <td>${record.date}</td>
+                                        <td>${record.betAmount}</td>
+                                        <td>${record.odds}</td>
+                                        <td>
+                                            <span class="outcome-badge ${record.status === 'win' ? 'win-badge' : (record.status === 'loss' ? 'loss-badge' : '')}">
+                                                ${record.status === 'pending' ? '待定' : (record.outcome === 'win' ? '贏' : '輸')}
+                                            </span>
+                                        </td>
+                                        <td class="${record.status === 'win' ? 'profit-text' : (record.status === 'loss' ? 'loss-text' : '')}">
+                                            ${record.status === 'pending' ? '待定' : record.profitLoss.toFixed(2)}
+                                        </td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                        <div style="text-align: center; margin-top: 20px; font-size: 1.1em; font-weight: bold;">
+                            篩選後總獲利/虧損:
+                            <span class="${parseFloat(totalProfitLossFiltered) >= 0 ? 'blue-text' : 'red-text'}">
+                                ${totalProfitLossFiltered} NTD
+                            </span>
+                        </div>
+                        <div style="text-align: center; margin-top: 10px; font-size: 1em;">
+                            總勝場: ${totalWins} | 總敗場: ${totalLosses} | 平均勝率: ${averageWinRate}%
+                        </div>
+                        <div style="text-align: center; margin-top: 30px; font-size: 0.8em; color: #6B7280;">
+                            威爾設計版權所有
+                        </div>
+                    </body>
+                    </html>
+                `;
+
+                const printWindow = window.open('', '_blank', 'width=800,height=600');
+                if (printWindow) {
+                    printWindow.document.write(printContentHtml);
+                    printWindow.document.close(); // Important to close the document for rendering
+                    printWindow.focus(); // Focus the new window
+
+                    // Use setTimeout to ensure content is rendered before printing
+                    printWindow.onload = () => {
+                        printWindow.print();
+                        printWindow.close();
+                    };
+                } else {
+                    setErrorMessage('無法開啟列印視窗，請檢查瀏覽器設定或彈出視窗阻擋。');
+                }
+            };
+
+
+            return (
+                <div className="min-h-screen bg-gradient-to-br from-red-100 to-white flex flex-col items-center justify-center p-4 font-sans">
+                    {/* Main container for calculator and history, using flexbox for side-by-side layout */}
+                    <div className="flex flex-col md:flex-row md:space-x-8 w-full max-w-6xl">
+
+                        {/* Calculator section (left side) */}
+                        <div className="bg-white p-8 rounded-xl shadow-2xl w-full md:w-1/2 mb-8 md:mb-0 transform transition-all duration-300 hover:scale-[1.01]">
+                            <h1 className="text-3xl font-extrabold text-gray-900 mb-6 text-center">
+                                投注
+                            </h1>
+
+                            {/* Input field for Bet Amount */}
+                            <div className="mb-4">
+                                <label htmlFor="betAmount" className="block text-gray-700 text-sm font-semibold mb-2">
+                                    投注金額 (NTD):
+                                </label>
+                                <input
+                                    type="number"
+                                    id="betAmount"
+                                    value={betAmount}
+                                    onChange={(e) => setBetAmount(e.target.value)}
+                                    placeholder="例如: 1000"
+                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 ease-in-out text-gray-800"
+                                />
+                            </div>
+
+                            {/* Input field for Odds */}
+                            <div className="mb-4">
+                                <label htmlFor="odds" className="block text-gray-700 text-sm font-semibold mb-2">
+                                    賠率:
+                                </label>
+                                <input
+                                    type="number"
+                                    id="odds"
+                                    value={odds}
+                                    onChange={(e) => setOdds(e.target.value)}
+                                    placeholder="請先輸入賠率"
+                                    step="0.01" // Allow decimal input for odds
+                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 ease-in-out text-gray-800"
+                                />
+                            </div>
+
+                            {/* Error message display */}
+                            {errorMessage && (
+                                <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg relative mb-4" role="alert">
+                                    <span className="block sm:inline">{errorMessage}</span>
+                                </div>
+                            )}
+
+                            {/* Calculation and Reset buttons */}
+                            <div className="flex space-x-4 mb-6">
+                                <button
+                                    onClick={handleAddRecordButtonClick}
+                                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-75"
+                                >
+                                    新增紀錄
+                                </button>
+                                <button
+                                    onClick={resetFields}
+                                    className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-3 px-4 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-75"
+                                >
+                                    重設
+                                </button>
+                            </div>
+
+                            {/* Display area for the single bet result */}
+                            {singleBetResult !== null && (
+                                <div className="mt-6 p-6 bg-gray-50 rounded-xl shadow-inner text-center mb-4">
+                                    <h2 className="text-xl font-semibold text-gray-700 mb-2">單次投注預覽 (潛在獲利):</h2>
+                                    <p className={`text-4xl font-extrabold ${parseFloat(singleBetResult) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                        {parseFloat(singleBetResult) >= 0 ? '獲利' : '虧損'}: {singleBetResult} NTD
+                                    </p>
+                                    {parseFloat(singleBetResult) > 0 && (
+                                        <p className="text-sm text-gray-600 mt-2">此為若成功，預期之淨獲利。</p>
+                                    )}
+                                    {parseFloat(singleBetResult) === 0 && ( /* Added specific condition for 0 */
+                                        <p className="text-sm text-gray-600 mt-2">此為若成功，預期收支平衡。</p>
+                                    )}
+                                    {parseFloat(singleBetResult) < 0 && ( /* Specific condition for negative */
+                                        <>
+                                            <p className="text-sm text-gray-600 mt-2">此為若成功，預期之淨虧損。</p>
+                                            <p className="text-sm text-red-500 mt-2 italic">
+                                                {singleBetLossSuggestions[Math.floor(Math.random() * singleBetLossSuggestions.length)]}
+                                            </p>
+                                        </>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Section for Target Profit Calculation */}
+                            <div className="mt-6 p-6 bg-gray-100 rounded-xl shadow-inner text-center">
+                                <h2 className="text-xl font-semibold text-gray-800 mb-4">目標獲利所需投注計算</h2>
+                                <div className="mb-4">
+                                    <label htmlFor="targetProfitAmount" className="block text-gray-700 text-sm font-semibold mb-2">
+                                        目標獲利金額 (NTD):
+                                    </label>
+                                    <input
+                                        type="number"
+                                        id="targetProfitAmount"
+                                        value={targetProfitAmount}
+                                        onChange={(e) => setTargetProfitAmount(e.target.value)}
+                                        placeholder="例如: 1000"
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition duration-200 ease-in-out text-gray-800"
+                                    />
+                                </div>
+                                {requiredBetForTargetProfit !== null && (
+                                    <p className="text-lg font-bold text-gray-800 mt-4">
+                                        為達到目標獲利，需投注:
+                                        <span className="ml-2 text-purple-600 text-3xl">
+                                            {requiredBetForTargetProfit} NTD
+                                        </span>
+                                    </p>
+                                )}
+                                {(parseFloat(odds) < 1.01 && targetProfitAmount !== '') && ( // Added a small threshold for odds - 1
+                                    <p className="text-red-500 text-sm mt-2">
+                                        賠率過低 (接近1)，無法達到目標獲利，或需投注極大金額。
+                                    </p>
+                                )}
+                            </div>
+
+                        </div>
+
+                        {/* Display area for the last 10 records (right side) */}
+                        <div id="bet-history-section" className="bg-white p-8 rounded-xl shadow-2xl w-full md:w-1/2 overflow-y-auto max-h-[80vh] min-h-[200px]">
+                            <h2 className="text-xl font-extrabold text-gray-900 mb-4 text-center">投注紀錄</h2>
+
+                            {/* Date filter inputs and Export/Print buttons */}
+                            <div className="mb-4 flex flex-col sm:flex-row sm:space-x-4 items-end"> {/* Align items to bottom for button */}
+                                <div className="flex-1 mb-4 sm:mb-0">
+                                    <label htmlFor="startDate" className="block text-gray-700 text-sm font-semibold mb-2">
+                                        開始日期:
+                                    </label>
+                                    <input
+                                        type="date"
+                                        id="startDate"
+                                        value={startDate}
+                                        onChange={(e) => setStartDate(e.target.value)}
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 ease-in-out text-gray-800"
+                                    />
+                                </div>
+                                <div className="flex-1 mb-4 sm:mb-0">
+                                    <label htmlFor="endDate" className="block text-gray-700 text-sm font-semibold mb-2">
+                                        結束日期:
+                                    </label>
+                                    <input
+                                        type="date"
+                                        id="endDate"
+                                        value={endDate}
+                                        onChange={(e) => setEndDate(e.target.value)}
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 ease-in-out text-gray-800"
+                                    />
+                                </div>
+                                <button
+                                    onClick={exportToCsv}
+                                    className="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-75 mb-2 sm:mb-0"
+                                >
+                                    導出紀錄
+                                </button>
+                                <button
+                                    onClick={handlePrintRecordsOnly}
+                                    className="w-full sm:w-auto bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-opacity-75"
+                                >
+                                    列印紀錄
+                                </button>
+                            </div>
+
+                            {filteredBetHistory.length > 0 ? (
+                                <>
+                                    <div className="overflow-x-auto">
+                                        <table className="min-w-full bg-white rounded-lg shadow-md">
+                                            <thead>
+                                                <tr className="bg-gray-200 text-gray-700 uppercase text-sm leading-normal">
+                                                    <th className="py-3 px-6 text-left">日期</th>
+                                                    <th className="py-3 px-6 text-left">金額</th>
+                                                    <th className="py-3 px-6 text-left">賠率</th>
+                                                    <th className="py-3 px-6 text-left">結果</th>
+                                                    <th className="py-3 px-6 text-left">獲利/虧損</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="text-gray-600 text-sm font-light">
+                                                {filteredBetHistory.map((record) => (
+                                                    <tr key={record.id} className="border-b border-gray-200 hover:bg-gray-100">
+                                                        <td className="py-3 px-6 text-left whitespace-nowrap">{record.date}</td>
+                                                        <td className="py-3 px-6 text-left whitespace-nowrap">{record.betAmount}</td>
+                                                        <td className="py-3 px-6 text-left">{record.odds}</td>
+                                                        <td className="py-3 px-6 text-left">
+                                                            {record.status === 'pending' ? (
+                                                                <div className="flex space-x-2">
+                                                                    <button
+                                                                        onClick={() => updateBetStatus(record.id, 'win')}
+                                                                        className="bg-green-500 hover:bg-green-600 text-white text-xs px-2 py-1 rounded-md transition duration-200"
+                                                                    >
+                                                                        贏
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => updateBetStatus(record.id, 'loss')}
+                                                                        className="bg-red-500 hover:bg-red-600 text-white text-xs px-2 py-1 rounded-md transition duration-200"
+                                                                    >
+                                                                        輸
+                                                                    </button>
+                                                                </div>
+                                                            ) : (
+                                                                <span className={`px-2 py-1 font-semibold leading-tight rounded-full ${record.outcome === 'win' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                                                                    {record.outcome === 'win' ? '贏' : '輸'}
+                                                                </span>
+                                                            )}
+                                                        </td>
+                                                        <td className={`py-3 px-6 text-left ${record.status === 'pending' ? 'text-gray-500' : (record.profitLoss >= 0 ? 'text-green-600' : 'text-red-600')}`}>
+                                                            {record.status === 'pending' ? '待定' : record.profitLoss.toFixed(2)}
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    <div className="mt-4 text-center text-lg font-bold">
+                                        篩選後總獲利/虧損:
+                                        <span className={`ml-2 ${parseFloat(totalProfitLossFiltered) >= 0 ? 'text-blue-600' : 'text-red-600'}`}>
+                                            {totalProfitLossFiltered} NTD
+                                        </span>
+                                    </div>
+                                    {/* Win/Loss Counts and Average Win Rate */}
+                                    <div className="mt-2 text-center text-base font-semibold text-gray-700">
+                                        總勝場: <span className="text-green-700">{totalWins}</span> |
+                                        總敗場: <span className="text-red-700">{totalLosses}</span> |
+                                        平均勝率: <span className="text-blue-700">{averageWinRate}%</span>
+                                    </div>
+                                    {/* New: Conditional General advice for overall profit/loss */}
+                                    <div className="mt-4 text-center text-sm text-gray-600 italic">
+                                        {parseFloat(totalProfitLossFiltered) > 0 ? (
+                                            generalProfitAdvice[Math.floor(Math.random() * generalProfitAdvice.length)]
+                                        ) : parseFloat(totalProfitLossFiltered) < 0 ? (
+                                            generalLossAdvice[Math.floor(Math.random() * generalLossAdvice.length)]
+                                        ) : (
+                                            generalNeutralAdvice[Math.floor(Math.random() * generalNeutralAdvice.length)]
+                                        )}
+                                    </div>
+                                </>
+                            ) : (
+                                <p className="text-center text-gray-500 mt-8">
+                                    沒有符合篩選條件的投注紀錄。
+                                </p>
+                            )}
+                        </div>
+                    </div>
+                    {/* Copyright notice at the bottom */}
+                    <div className="w-full text-center text-gray-600 text-sm mt-8 pb-4">
+                        威爾設計版權所有
+                    </div>
+                </div>
+            );
+        }
+
+        // Mount the React app to the root div
+        const domContainer = document.querySelector('#root');
+        const root = ReactDOM.createRoot(domContainer);
+        root.render(<App />);
+    </script>
+</body>
+</html>
