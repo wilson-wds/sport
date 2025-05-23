@@ -114,7 +114,7 @@
             // App states
             const [betAmount, setBetAmount] = React.useState(''); // 投注金額
             const [odds, setOdds] = React.useState('');           // 賠率
-            const [eventType, setEventType] = React.useState(''); // New: 賽事類型
+            const [eventType, setEventType] = React.useState(''); // 賽事類型
             const [singleBetResult, setSingleBetResult] = React.useState(null); // 單次投注計算結果 (獲利/虧損)
             const [errorMessage, setErrorMessage] = React.useState(''); // 錯誤訊息
             const [betHistory, setBetHistory] = React.useState([]); // 投注紀錄
@@ -130,6 +130,9 @@
             // State for confirmation dialog visibility for single delete
             const [showConfirmDeleteDialog, setShowConfirmDeleteDialog] = React.useState(false);
             const [recordToDelete, setRecordToDelete] = React.useState(null); // Stores the ID of the record to delete
+
+            // New: State for editing mode
+            const [editingRecordId, setEditingRecordId] = React.useState(null); // Stores the ID of the record being edited
 
             // Suggestions for single bet loss preview
             const singleBetLossSuggestions = [
@@ -336,8 +339,8 @@
                 calculateInstantResults();
             }, [betAmount, odds, targetProfitAmount, calculateInstantResults]); // Dependencies adjusted
 
-            // Function to handle the "新增紀錄" button click (adds to history)
-            const handleAddRecordButtonClick = async () => {
+            // Function to handle adding or updating a record
+            const handleSaveRecordButtonClick = async () => {
                 setErrorMessage('');
                 if (!db || !userId) {
                     setErrorMessage("資料庫未準備好或未登入。請先登入。");
@@ -360,37 +363,47 @@
                     return;
                 }
 
-                // Get current local date components
-                const now = new Date();
-                const year = now.getFullYear();
-                const month = (now.getMonth() + 1).toString().padStart(2, '0'); // Month is 0-indexed
-                const day = now.getDate().toString().padStart(2, '0');
-                const localDateString = `${year}-${month}-${day}`;
+                const localDateString = new Date().toISOString().split('T')[0]; // Get current date
 
                 try {
                     const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-                    // Collection path is user-specific
-                    await window.firebase.addDoc(window.firebase.collection(db, `artifacts/${appId}/users/${userId}/bettingHistory`), {
-                        betAmount: parsedBetAmount,
-                        odds: parsedOdds,
-                        eventType: eventType.trim(), // Save event type
-                        outcome: null, // Initial outcome is null, set when settled
-                        profitLoss: 0, // Initial profit/loss is 0, calculated when settled
-                        date: localDateString, // Store current local date inYYYY-MM-DD format
-                        status: 'pending', // Initial status is pending
-                        timestamp: window.firebase.serverTimestamp ? window.firebase.serverTimestamp() : Date.now(), // Use server timestamp if available
-                        addedBy: userId, // Record who added the bet
-                    });
+                    const collectionRef = window.firebase.collection(db, `artifacts/${appId}/users/${userId}/bettingHistory`);
 
-                    // Removed: Clearing betAmount and odds here
-                    // setBetAmount('');
-                    // setOdds('');
-                    setEventType(''); // Clear event type after adding
-                    setErrorMessage('');
+                    if (editingRecordId) {
+                        // Update existing record
+                        const docRef = window.firebase.doc(collectionRef, editingRecordId);
+                        await window.firebase.updateDoc(docRef, {
+                            betAmount: parsedBetAmount,
+                            odds: parsedOdds,
+                            eventType: eventType.trim(),
+                            // outcome, profitLoss, status, timestamp, addedBy, settledBy, settledAt remain unchanged or are updated via updateBetStatus
+                        });
+                        setErrorMessage("紀錄已成功更新。");
+                        setEditingRecordId(null); // Exit editing mode
+                    } else {
+                        // Add new record
+                        await window.firebase.addDoc(collectionRef, {
+                            betAmount: parsedBetAmount,
+                            odds: parsedOdds,
+                            eventType: eventType.trim(),
+                            outcome: null,
+                            profitLoss: 0,
+                            date: localDateString,
+                            status: 'pending',
+                            timestamp: window.firebase.serverTimestamp ? window.firebase.serverTimestamp() : Date.now(),
+                            addedBy: userId,
+                        });
+                        setErrorMessage("新增紀錄成功。");
+                    }
+
+                    // Keep betAmount and odds, clear eventType only for new adds
+                    // setBetAmount(''); // Keep value
+                    // setOdds(''); // Keep value
+                    setEventType(''); // Clear event type
                 }
                 catch (error) {
-                    console.error("Error adding document:", error);
-                    setErrorMessage("新增紀錄失敗。");
+                    console.error("Error saving document:", error);
+                    setErrorMessage("儲存紀錄失敗。");
                 }
             };
 
@@ -432,7 +445,31 @@
                 }
             };
 
-            // New: Function to handle deleting a single record
+            // Function to handle editing a record
+            const handleEditRecord = (record) => {
+                setBetAmount(record.betAmount.toString());
+                setOdds(record.odds.toString());
+                setEventType(record.eventType);
+                setEditingRecordId(record.id);
+                setErrorMessage(''); // Clear any previous error messages
+                setSingleBetResult(null); // Clear preview result
+                setTargetProfitAmount(''); // Clear target profit calculation
+                setRequiredBetForTargetProfit(null);
+            };
+
+            // Function to cancel editing
+            const handleCancelEdit = () => {
+                setEditingRecordId(null);
+                setBetAmount('');
+                setOdds('');
+                setEventType('');
+                setErrorMessage('');
+                setSingleBetResult(null);
+                setTargetProfitAmount('');
+                setRequiredBetForTargetProfit(null);
+            };
+
+            // Function to handle deleting a single record
             const handleDeleteRecord = async () => {
                 setErrorMessage('');
                 if (!db || !userId || !recordToDelete) {
@@ -517,6 +554,7 @@
                 setEndDate('');   // Clear date filters
                 setTargetProfitAmount(''); // Reset target profit input
                 setRequiredBetForTargetProfit(null); // Reset required bet for target profit
+                setEditingRecordId(null); // Clear editing state
             };
 
             // Function to export filtered history to CSV
@@ -809,11 +847,11 @@
                             {/* Calculation and Reset buttons */}
                             <div className="flex space-x-4 mb-6">
                                 <button
-                                    onClick={handleAddRecordButtonClick}
+                                    onClick={handleSaveRecordButtonClick} // Changed to handleSaveRecordButtonClick
                                     className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-75"
                                     disabled={loadingFirebase || !isAuthReady || !userId} // Disable if Firebase is not ready
                                 >
-                                    新增紀錄
+                                    {editingRecordId ? '更新紀錄' : '新增紀錄'} {/* Dynamic button text */}
                                 </button>
                                 <button
                                     onClick={resetFields}
@@ -821,6 +859,14 @@
                                 >
                                     重設
                                 </button>
+                                {editingRecordId && ( /* Show Cancel button only in editing mode */
+                                    <button
+                                        onClick={handleCancelEdit}
+                                        className="flex-1 bg-gray-500 hover:bg-gray-600 text-white font-bold py-3 px-4 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-75 ml-2"
+                                    >
+                                        取消編輯
+                                    </button>
+                                )}
                             </div>
 
                             {/* Display area for the single bet result */}
@@ -973,14 +1019,23 @@
                                                         <td className={`py-3 px-6 text-left ${record.status === 'pending' ? 'text-gray-500' : (record.profitLoss >= 0 ? 'text-green-600' : 'text-red-600')}`}>
                                                             {record.status === 'pending' ? '待定' : record.profitLoss.toFixed(2)}
                                                         </td>
-                                                        <td className="py-3 px-6 text-left"> {/* Delete button column */}
-                                                            <button
-                                                                onClick={() => { setShowConfirmDeleteDialog(true); setRecordToDelete(record.id); }}
-                                                                className="bg-gray-400 hover:bg-gray-500 text-white text-xs px-2 py-1 rounded-md transition duration-200"
-                                                                disabled={loadingFirebase || !isAuthReady || !userId}
-                                                            >
-                                                                刪除
-                                                            </button>
+                                                        <td className="py-3 px-6 text-left"> {/* Action buttons column */}
+                                                            <div className="flex space-x-2">
+                                                                <button
+                                                                    onClick={() => handleEditRecord(record)}
+                                                                    className="bg-blue-500 hover:bg-blue-600 text-white text-xs px-2 py-1 rounded-md transition duration-200"
+                                                                    disabled={loadingFirebase || !isAuthReady || !userId}
+                                                                >
+                                                                    編輯
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => { setShowConfirmDeleteDialog(true); setRecordToDelete(record.id); }}
+                                                                    className="bg-gray-400 hover:bg-gray-500 text-white text-xs px-2 py-1 rounded-md transition duration-200"
+                                                                    disabled={loadingFirebase || !isAuthReady || !userId}
+                                                                >
+                                                                    刪除
+                                                                </button>
+                                                            </div>
                                                         </td>
                                                     </tr>
                                                 ))}
