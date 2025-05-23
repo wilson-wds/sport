@@ -106,8 +106,8 @@
             const [db, setDb] = React.useState(null);
             const [auth, setAuth] = React.useState(null);
             const [userId, setUserId] = React.useState(null);
-            const [userName, setUserName] = React.useState(null); // New: User's display name
-            const [userEmail, setUserEmail] = React.useState(null); // New: User's email
+            const [userName, setUserName] = React.useState(null); // User's display name
+            const [userEmail, setUserEmail] = React.useState(null); // User's email
             const [isAuthReady, setIsAuthReady] = React.useState(false);
             const [loadingFirebase, setLoadingFirebase] = React.useState(true);
 
@@ -125,6 +125,10 @@
             // Target profit calculation states
             const [targetProfitAmount, setTargetProfitAmount] = React.useState(''); // 目標獲利金額
             const [requiredBetForTargetProfit, setRequiredBetForTargetProfit] = React.useState(null); // 為達到目標獲利所需投注金額
+
+            // State for confirmation dialog visibility for single delete
+            const [showConfirmDeleteDialog, setShowConfirmDeleteDialog] = React.useState(false);
+            const [recordToDelete, setRecordToDelete] = React.useState(null); // Stores the ID of the record to delete
 
             // Suggestions for single bet loss preview
             const singleBetLossSuggestions = [
@@ -185,6 +189,7 @@
                             } else {
                                 // If no user, try anonymous sign-in first as a fallback
                                 try {
+                                    // Only attempt custom token sign-in if token is provided
                                     if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token !== '') {
                                         await window.firebase.signInWithCustomToken(authInstance, __initial_auth_token);
                                     } else {
@@ -274,6 +279,8 @@
                     const bettingHistoryCollectionRef = window.firebase.collection(db, `artifacts/${appId}/users/${userId}/bettingHistory`);
 
                     // Order by timestamp to maintain insertion order
+                    // Note: Firestore's `orderBy` can be slow without indexes.
+                    // For simplicity, we sort by `id` (which is Date.now() or Firestore doc ID) after fetching.
                     unsubscribe = window.firebase.onSnapshot(bettingHistoryCollectionRef, (snapshot) => {
                         const records = [];
                         snapshot.forEach(doc => {
@@ -348,6 +355,13 @@
                     return;
                 }
 
+                // Get current local date components
+                const now = new Date();
+                const year = now.getFullYear();
+                const month = (now.getMonth() + 1).toString().padStart(2, '0'); // Month is 0-indexed
+                const day = now.getDate().toString().padStart(2, '0');
+                const localDateString = `${year}-${month}-${day}`;
+
                 try {
                     const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
                     // Collection path is user-specific
@@ -356,7 +370,7 @@
                         odds: parsedOdds,
                         outcome: null, // Initial outcome is null, set when settled
                         profitLoss: 0, // Initial profit/loss is 0, calculated when settled
-                        date: new Date().toISOString().split('T')[0], // Store current date inYYYY-MM-DD format
+                        date: localDateString, // Store current local date inYYYY-MM-DD format
                         status: 'pending', // Initial status is pending
                         timestamp: window.firebase.serverTimestamp ? window.firebase.serverTimestamp() : Date.now(), // Use server timestamp if available
                         addedBy: userId, // Record who added the bet
@@ -410,6 +424,34 @@
                     setErrorMessage("更新紀錄失敗。");
                 }
             };
+
+            // New: Function to handle deleting a single record
+            const handleDeleteRecord = async () => {
+                setErrorMessage('');
+                if (!db || !userId || !recordToDelete) {
+                    setErrorMessage("無法刪除紀錄，資料庫未準備好或未登入。");
+                    setShowConfirmDeleteDialog(false); // Hide dialog
+                    setRecordToDelete(null); // Clear pending delete record
+                    return;
+                }
+
+                try {
+                    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+                    // Document path is user-specific
+                    const docRef = window.firebase.doc(db, `artifacts/${appId}/users/${userId}/bettingHistory`, recordToDelete);
+                    await window.firebase.deleteDoc(docRef);
+                    
+                    setErrorMessage("紀錄已成功刪除。");
+                    setShowConfirmDeleteDialog(false); // Hide dialog
+                    setRecordToDelete(null); // Clear pending delete record
+                } catch (error) {
+                    console.error("Error deleting document:", error);
+                    setErrorMessage("刪除紀錄失敗。");
+                    setShowConfirmDeleteDialog(false); // Hide dialog
+                    setRecordToDelete(null); // Clear pending delete record
+                }
+            };
+
 
             // Memoized filtered history based on date range
             const filteredBetHistory = React.useMemo(() => {
@@ -666,6 +708,31 @@
                     </div>
 
 
+                    {/* Confirmation Dialog for single record delete */}
+                    {showConfirmDeleteDialog && recordToDelete && (
+                        <div className="fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center z-50">
+                            <div className="bg-white p-6 rounded-lg shadow-xl text-center">
+                                <p className="text-lg font-semibold mb-4">確定要刪除這筆紀錄嗎？</p>
+                                <p className="text-sm text-gray-600 mb-6">此操作無法復原。</p>
+                                <div className="flex justify-center space-x-4">
+                                    <button
+                                        onClick={() => { setShowConfirmDeleteDialog(false); setRecordToDelete(null); }}
+                                        className="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded-lg transition duration-200"
+                                    >
+                                        取消
+                                    </button>
+                                    <button
+                                        onClick={handleDeleteRecord}
+                                        className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg transition duration-200"
+                                    >
+                                        確認刪除
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+
                     {/* Main container for calculator and history, using flexbox for side-by-side layout */}
                     <div className="flex flex-col md:flex-row md:space-x-8 w-full max-w-6xl mt-20 sm:mt-24"> {/* Adjusted margin-top */}
 
@@ -718,7 +785,7 @@
                                 <button
                                     onClick={handleAddRecordButtonClick}
                                     className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-75"
-                                    disabled={loadingFirebase || !isAuthReady || !userId} // Disable if Firebase is not ready or not logged in
+                                    disabled={loadingFirebase || !isAuthReady || !userId} // Disable if Firebase is not ready
                                 >
                                     新增紀錄
                                 </button>
@@ -842,6 +909,7 @@
                                                     <th className="py-3 px-6 text-left">賠率</th>
                                                     <th className="py-3 px-6 text-left">結果</th>
                                                     <th className="py-3 px-6 text-left">獲利/虧損</th>
+                                                    <th className="py-3 px-6 text-left">操作</th> {/* New column for delete button */}
                                                 </tr>
                                             </thead>
                                             <tbody className="text-gray-600 text-sm font-light">
@@ -876,6 +944,15 @@
                                                         </td>
                                                         <td className={`py-3 px-6 text-left ${record.status === 'pending' ? 'text-gray-500' : (record.profitLoss >= 0 ? 'text-green-600' : 'text-red-600')}`}>
                                                             {record.status === 'pending' ? '待定' : record.profitLoss.toFixed(2)}
+                                                        </td>
+                                                        <td className="py-3 px-6 text-left"> {/* Delete button column */}
+                                                            <button
+                                                                onClick={() => { setShowConfirmDeleteDialog(true); setRecordToDelete(record.id); }}
+                                                                className="bg-gray-400 hover:bg-gray-500 text-white text-xs px-2 py-1 rounded-md transition duration-200"
+                                                                disabled={loadingFirebase || !isAuthReady || !userId}
+                                                            >
+                                                                刪除
+                                                            </button>
                                                         </td>
                                                     </tr>
                                                 ))}
