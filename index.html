@@ -43,8 +43,8 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, query, where, getDocs, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js"; // Added GoogleAuthProvider, signInWithPopup, signOut
+        import { getFirestore, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // Expose Firebase modules globally for React to access (or pass via context)
         window.firebase = {
@@ -53,6 +53,9 @@
             signInAnonymously,
             signInWithCustomToken,
             onAuthStateChanged,
+            GoogleAuthProvider, // Expose GoogleAuthProvider
+            signInWithPopup,    // Expose signInWithPopup
+            signOut,            // Expose signOut
             getFirestore,
             doc,
             getDoc,
@@ -64,8 +67,7 @@
             collection,
             query,
             where,
-            getDocs,
-            writeBatch // Expose writeBatch
+            getDocs
         };
     </script>
 
@@ -84,7 +86,7 @@
         });
 
         // *** 重要：請自訂一個唯一的應用程式 ID，如果不在 Canvas 環境中運行 ***
-        // 所有使用相同 __app_id 的用戶將共享同一組資料。例如："my-betting-app-shared-data"
+        // 這個 ID 必須與您在 Firestore 安全規則中使用的 {appId} 相符。例如："my-betting-app-shared-data"
         const __app_id = "your-custom-app-id-here"; // <-- 請替換為您自訂的 ID，例如 "my-betting-app-2024"
 
         // 這是 Canvas 環境特有的初始認證 Token。
@@ -104,6 +106,8 @@
             const [db, setDb] = React.useState(null);
             const [auth, setAuth] = React.useState(null);
             const [userId, setUserId] = React.useState(null);
+            const [userName, setUserName] = React.useState(null); // New: User's display name
+            const [userEmail, setUserEmail] = React.useState(null); // New: User's email
             const [isAuthReady, setIsAuthReady] = React.useState(false);
             const [loadingFirebase, setLoadingFirebase] = React.useState(true);
 
@@ -176,10 +180,11 @@
                         const unsubscribe = window.firebase.onAuthStateChanged(authInstance, async (user) => {
                             if (user) {
                                 setUserId(user.uid);
+                                setUserName(user.displayName || user.email || '匿名用戶'); // Use display name, then email, then anonymous
+                                setUserEmail(user.email);
                             } else {
-                                // If no user, try anonymous sign-in
+                                // If no user, try anonymous sign-in first as a fallback
                                 try {
-                                    // Only attempt custom token sign-in if token is provided
                                     if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token !== '') {
                                         await window.firebase.signInWithCustomToken(authInstance, __initial_auth_token);
                                     } else {
@@ -187,7 +192,7 @@
                                     }
                                 } catch (anonError) {
                                     console.error("Anonymous sign-in failed:", anonError);
-                                    setErrorMessage("匿名登入失敗，部分功能可能無法使用。");
+                                    setErrorMessage("匿名登入失敗，請檢查 Firebase 認證設定或 API 金鑰。");
                                 }
                             }
                             setIsAuthReady(true); // Auth state is known
@@ -205,18 +210,70 @@
                 initializeFirebase();
             }, []); // Run only once on mount
 
+            // --- Google Sign-In Handler ---
+            const handleGoogleSignIn = async () => {
+                setErrorMessage('');
+                if (!auth) {
+                    setErrorMessage("認證服務未準備好。");
+                    return;
+                }
+                try {
+                    const provider = new window.firebase.GoogleAuthProvider();
+                    await window.firebase.signInWithPopup(auth, provider);
+                    // User is automatically set by onAuthStateChanged listener
+                } catch (error) {
+                    console.error("Google Sign-In failed:", error);
+                    let msg = "Google 登入失敗。";
+                    if (error.code === 'auth/popup-closed-by-user') {
+                        msg = "Google 登入視窗已關閉。";
+                    } else if (error.code === 'auth/cancelled-popup-request') {
+                        msg = "已取消先前的登入請求。";
+                    } else if (error.code === 'auth/unauthorized-domain') {
+                        msg = "未授權的網域。請在 Firebase Console 中新增您的網域。";
+                    }
+                    setErrorMessage(msg + " 請檢查 Firebase 認證設定。");
+                }
+            };
+
+            // --- Sign Out Handler ---
+            const handleSignOut = async () => {
+                setErrorMessage('');
+                if (!auth) {
+                    setErrorMessage("認證服務未準備好。");
+                    return;
+                }
+                try {
+                    await window.firebase.signOut(auth);
+                    setUserId(null);
+                    setUserName(null);
+                    setUserEmail(null);
+                    setBetHistory([]); // Clear history on sign out
+                    // Optionally, re-sign in anonymously if desired after explicit sign out
+                    // await window.firebase.signInAnonymously(auth);
+                } catch (error) {
+                    console.error("Sign Out failed:", error);
+                    setErrorMessage("登出失敗。");
+                }
+            };
+
             // --- Firestore Real-time Data Sync ---
             React.useEffect(() => {
-                if (!db || !isAuthReady) return; // Only run if Firebase is initialized and auth state is known
+                // Only run if Firebase is initialized, auth state is known, AND userId is available
+                if (!db || !isAuthReady || !userId) {
+                    // If userId becomes null (e.g., after sign out), clear history
+                    if (betHistory.length > 0) {
+                        setBetHistory([]);
+                    }
+                    return;
+                }
 
                 let unsubscribe;
                 try {
                     const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-                    const bettingHistoryCollectionRef = window.firebase.collection(db, `artifacts/${appId}/public/data/bettingHistory`);
+                    // Collection path is now user-specific
+                    const bettingHistoryCollectionRef = window.firebase.collection(db, `artifacts/${appId}/users/${userId}/bettingHistory`);
 
                     // Order by timestamp to maintain insertion order
-                    // Note: Firestore's `orderBy` can be slow without indexes.
-                    // For simplicity, we sort by `id` (which is Date.now() or Firestore doc ID) after fetching.
                     unsubscribe = window.firebase.onSnapshot(bettingHistoryCollectionRef, (snapshot) => {
                         const records = [];
                         snapshot.forEach(doc => {
@@ -238,7 +295,7 @@
                 return () => {
                     if (unsubscribe) unsubscribe(); // Cleanup listener on unmount
                 };
-            }, [db, isAuthReady]); // Re-run if db or auth state changes
+            }, [db, isAuthReady, userId]); // Re-run if db, auth state, or userId changes
 
             // Function to perform instant calculation based on current inputs
             const calculateInstantResults = React.useCallback(() => {
@@ -275,7 +332,7 @@
             const handleAddRecordButtonClick = async () => {
                 setErrorMessage('');
                 if (!db || !userId) {
-                    setErrorMessage("資料庫未準備好或未登入。");
+                    setErrorMessage("資料庫未準備好或未登入。請先登入。");
                     return;
                 }
 
@@ -293,7 +350,8 @@
 
                 try {
                     const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-                    await window.firebase.addDoc(window.firebase.collection(db, `artifacts/${appId}/public/data/bettingHistory`), {
+                    // Collection path is user-specific
+                    await window.firebase.addDoc(window.firebase.collection(db, `artifacts/${appId}/users/${userId}/bettingHistory`), {
                         betAmount: parsedBetAmount,
                         odds: parsedOdds,
                         outcome: null, // Initial outcome is null, set when settled
@@ -324,7 +382,8 @@
                 }
                 try {
                     const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-                    const docRef = window.firebase.doc(db, `artifacts/${appId}/public/data/bettingHistory`, id);
+                    // Document path is user-specific
+                    const docRef = window.firebase.doc(db, `artifacts/${appId}/users/${userId}/bettingHistory`, id);
                     const docSnap = await window.firebase.getDoc(docRef);
 
                     if (docSnap.exists()) {
@@ -566,15 +625,49 @@
                         </div>
                     )}
 
-                    {/* User ID display */}
-                    {userId && (
-                        <div className="absolute top-4 left-4 bg-gray-100 text-gray-700 text-xs px-3 py-1 rounded-full shadow-md">
-                            用戶ID: {userId}
+                    {/* User Info and Sign-in/Sign-out buttons */}
+                    <div className="absolute top-4 left-4 right-4 flex flex-col sm:flex-row justify-between items-start sm:items-center bg-gray-100 text-gray-700 text-xs px-3 py-2 rounded-full shadow-md z-10">
+                        {userId ? (
+                            <div className="flex items-center">
+                                <span className="font-bold mr-1">登入用戶:</span>
+                                {userName || userEmail || userId}
+                                {userEmail && <span className="ml-2 text-gray-500">({userEmail})</span>}
+                            </div>
+                        ) : (
+                            <span className="font-bold">未登入</span>
+                        )}
+                        <div className="mt-2 sm:mt-0 flex space-x-2">
+                            {userId && !userEmail ? ( // Show Google Sign-in if anonymous
+                                <button
+                                    onClick={handleGoogleSignIn}
+                                    className="bg-blue-500 hover:bg-blue-600 text-white text-xs px-3 py-1 rounded-full transition duration-200"
+                                    disabled={loadingFirebase || !isAuthReady}
+                                >
+                                    Google 登入
+                                </button>
+                            ) : userId && userEmail ? ( // Show Sign-out if Google user
+                                <button
+                                    onClick={handleSignOut}
+                                    className="bg-red-500 hover:bg-red-600 text-white text-xs px-3 py-1 rounded-full transition duration-200"
+                                    disabled={loadingFirebase || !isAuthReady}
+                                >
+                                    登出
+                                </button>
+                            ) : ( // Show Google Sign-in if not authenticated at all (or anonymous failed)
+                                <button
+                                    onClick={handleGoogleSignIn}
+                                    className="bg-blue-500 hover:bg-blue-600 text-white text-xs px-3 py-1 rounded-full transition duration-200"
+                                    disabled={loadingFirebase || !isAuthReady}
+                                >
+                                    Google 登入
+                                </button>
+                            )}
                         </div>
-                    )}
+                    </div>
+
 
                     {/* Main container for calculator and history, using flexbox for side-by-side layout */}
-                    <div className="flex flex-col md:flex-row md:space-x-8 w-full max-w-6xl">
+                    <div className="flex flex-col md:flex-row md:space-x-8 w-full max-w-6xl mt-20 sm:mt-24"> {/* Adjusted margin-top */}
 
                         {/* Calculator section (left side) */}
                         <div className="bg-white p-8 rounded-xl shadow-2xl w-full md:w-1/2 mb-8 md:mb-0 transform transition-all duration-300 hover:scale-[1.01]">
@@ -625,7 +718,7 @@
                                 <button
                                     onClick={handleAddRecordButtonClick}
                                     className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-75"
-                                    disabled={loadingFirebase || !isAuthReady} // Disable if Firebase is not ready
+                                    disabled={loadingFirebase || !isAuthReady || !userId} // Disable if Firebase is not ready or not logged in
                                 >
                                     新增紀錄
                                 </button>
@@ -763,14 +856,14 @@
                                                                     <button
                                                                         onClick={() => updateBetStatus(record.id, 'win')}
                                                                         className="bg-green-500 hover:bg-green-600 text-white text-xs px-2 py-1 rounded-md transition duration-200"
-                                                                        disabled={loadingFirebase || !isAuthReady}
+                                                                        disabled={loadingFirebase || !isAuthReady || !userId}
                                                                     >
                                                                         贏
                                                                     </button>
                                                                     <button
                                                                         onClick={() => updateBetStatus(record.id, 'loss')}
                                                                         className="bg-red-500 hover:bg-red-600 text-white text-xs px-2 py-1 rounded-md transition duration-200"
-                                                                        disabled={loadingFirebase || !isAuthReady}
+                                                                        disabled={loadingFirebase || !isAuthReady || !userId}
                                                                     >
                                                                         輸
                                                                     </button>
