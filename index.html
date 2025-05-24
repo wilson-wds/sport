@@ -71,19 +71,32 @@
     </script>
 
     <script>
+        // *** 重要：請將 YOUR_FIREBASE_CONFIG_OBJECT_HERE 替換為您從 Firebase Console 取得的完整配置物件 ***
+        // 您可以在 Firebase Console -> 專案設定 -> 「您的應用程式」中找到它。
+        // 範例格式：JSON.stringify({ apiKey: "AIzaSyB...", authDomain: "your-project.firebaseapp.com", projectId: "your-project-id", ... })
         const __firebase_config = JSON.stringify({
-          apiKey: "AIzaSyADSbeZr04Rxr0Al5jKVY1u5j9dnD2Bfx4",
-          authDomain: "wds-sport.firebaseapp.com",
-          projectId: "wds-sport",
-          storageBucket: "wds-sport.firebasestorage.app",
-          messagingSenderId: "765754214969",
-          appId: "1:765754214969:web:d0b648f04b8526a3019be8",
+          apiKey: "AIzaSyADSbeZr04Rxr0Al5jKVY1u5j9dnD2Bfx4", // <-- 請替換為您的實際 API Key
+          authDomain: "wds-sport.firebaseapp.com", // <-- 請替換為您的實際 Auth Domain
+          projectId: "wds-sport", // <-- 請替換為您的實際 Project ID
+          storageBucket: "wds-sport.firebasestorage.app", // <-- 請替換為您的實際 Storage Bucket
+          messagingSenderId: "765754214969", // <-- 請替換為您的實際 Sender ID
+          appId: "1:765754214969:web:d0b648f04b8526a3019be8", // <-- 請替換為您的實際 App ID
+          // measurementId: "YOUR_MEASUREMENT_ID" // 如果有啟用 Google Analytics，請解除註解並替換為您的實際 Measurement ID
         });
 
-        const __app_id = "your-custom-app-id-here";
+        // *** 重要：請自訂一個唯一的應用程式 ID，如果不在 Canvas 環境中運行 ***
+        // 這個 ID 必須與您在 Firestore 安全規則中使用的 {appId} 相符。例如："my-betting-app-shared-data"
+        const __app_id = "your-custom-app-id-here"; // <-- 請替換為您自訂的 ID，例如 "my-betting-app-2024"
 
+        // 這是 Canvas 環境特有的初始認證 Token。
+        // 在您本地運行或使用 GitHub Pages 時，此變數通常保持為空字串或移除。
+        // 應用程式會自動回退到匿名登入。
         const __initial_auth_token = ""; 
     </script>
+
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
     <script type="text/babel">
         function App() {
@@ -244,15 +257,12 @@
                     const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
                     const bettingHistoryCollectionRef = window.firebase.collection(db, `artifacts/${appId}/users/${userId}/bettingHistory`);
 
-                    // Use onSnapshot to get real-time updates
                     unsubscribe = window.firebase.onSnapshot(bettingHistoryCollectionRef, (snapshot) => {
                         const records = [];
                         snapshot.forEach(doc => {
                             records.push({ id: doc.id, ...doc.data() });
                         });
-                        // Sort by timestamp (if available) or id (which is Date.now())
                         records.sort((a, b) => {
-                            // Prefer timestamp from Firestore if available, otherwise fallback to id (local timestamp)
                             const timeA = a.timestamp ? (a.timestamp.toDate ? a.timestamp.toDate().getTime() : a.timestamp) : a.id;
                             const timeB = b.timestamp ? (b.timestamp.toDate ? b.timestamp.toDate().getTime() : b.timestamp) : b.id;
                             return timeA - timeB;
@@ -453,8 +463,15 @@
 
             const filteredBetHistory = React.useMemo(() => {
                 const filtered = betHistory.filter(record => {
-                    // For filtering, compare only the date part (YYYY-MM-DD)
-                    const recordDateOnly = new Date(record.date.substring(0, 10).replace(/-/g, '/')); // Ensure consistent parsing
+                    const recordDate = new Date(record.date.replace(/-/g, '/'));
+                    const start = startDate ? new Date(startDate) : null;
+                    const end = endDate ? new Date(endDate) : null;
+
+                    if (end) {
+                        end.setHours(23, 59, 59, 999);
+                    }
+
+                    const recordDateOnly = new Date(record.date.substring(0, 10));
                     const startDateOnly = startDate ? new Date(startDate) : null;
                     const endDateOnly = endDate ? new Date(endDate) : null;
 
@@ -464,9 +481,7 @@
 
                     return isAfterStartDate && isBeforeEndDate;
                 });
-                // Sort by actual timestamp for chronological order
                 return filtered.sort((a, b) => {
-                    // Convert date strings to Date objects for accurate chronological sorting
                     const dateA = new Date(a.date.replace(/-/g, '/')).getTime();
                     const dateB = new Date(b.date.replace(/-/g, '/')).getTime();
                     return dateA - dateB;
