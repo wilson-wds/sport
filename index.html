@@ -363,12 +363,16 @@
                     return;
                 }
 
-                // Get current local date components
+                // Get current local date and time components
                 const now = new Date();
-                const year = now.getFullYear();
-                const month = (now.getMonth() + 1).toString().padStart(2, '0'); // Month is 0-indexed
-                const day = now.getDate().toString().padStart(2, '0');
-                const localDateString = `${year}-${month}-${day}`; // Format as YYYY-MM-DD
+                const localDateString = now.toLocaleString('zh-TW', {
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: false // Use 24-hour format
+                }).replace(/\//g, '-'); // Replace slashes with dashes for YYYY-MM-DD HH:mm format
 
                 try {
                     const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
@@ -381,6 +385,7 @@
                             betAmount: parsedBetAmount,
                             odds: parsedOdds,
                             eventType: eventType.trim(),
+                            // date: localDateTimeString, // Don't update date/time on edit unless explicitly intended
                             // outcome, profitLoss, status, timestamp, addedBy, settledBy, settledAt remain unchanged or are updated via updateBetStatus
                         });
                         setErrorMessage("紀錄已成功更新。");
@@ -393,7 +398,7 @@
                             eventType: eventType.trim(),
                             outcome: null,
                             profitLoss: 0,
-                            date: localDateString, // Use local date string
+                            date: localDateTimeString, // Use local date and time string
                             status: 'pending',
                             timestamp: window.firebase.serverTimestamp ? window.firebase.serverTimestamp() : Date.now(),
                             addedBy: userId,
@@ -506,7 +511,8 @@
             const filteredBetHistory = React.useMemo(() => {
                 // Filter first, then sort by timestamp (id)
                 const filtered = betHistory.filter(record => {
-                    const recordDate = new Date(record.date);
+                    // Parse record.date string (YYYY-MM-DD HH:mm) to Date object for comparison
+                    const recordDate = new Date(record.date.split(' ')[0]); // Only compare date part for filtering
                     const start = startDate ? new Date(startDate) : null;
                     const end = endDate ? new Date(endDate) : null;
 
@@ -579,7 +585,7 @@
                 filteredBetHistory.forEach((record, index) => { // Added index
                     const row = [
                         index + 1, // Serial number
-                        record.date,
+                        record.date, // Will now include time
                         record.eventType,
                         record.betAmount,
                         record.odds,
@@ -654,7 +660,7 @@
                             <thead>
                                 <tr>
                                     <th>序號</th> {/* Added 序號 */}
-                                    <th>日期</th>
+                                    <th>日期時間</th> {/* Changed to 日期時間 */}
                                     <th>賽事類型</th>
                                     <th>金額</th>
                                     <th>賠率</th>
@@ -666,7 +672,7 @@
                                 ${filteredBetHistory.map((record, index) => ` {/* Added index */}
                                     <tr>
                                         <td>${index + 1}</td> {/* Display serial number */}
-                                        <td>${record.date}</td>
+                                        <td>${record.date}</td> {/* Will now include time */}
                                         <td>${record.eventType}</td>
                                         <td>${record.betAmount}</td>
                                         <td>${record.odds}</td>
@@ -985,7 +991,7 @@
                                             <thead>
                                                 <tr className="bg-gray-200 text-gray-700 uppercase text-sm leading-normal">
                                                     <th className="py-3 px-6 text-left">序號</th> {/* Added 序號 */}
-                                                    <th className="py-3 px-6 text-left">日期</th>
+                                                    <th className="py-3 px-6 text-left">日期時間</th> {/* Changed to 日期時間 */}
                                                     <th className="py-3 px-6 text-left">賽事類型</th> {/* New column for event type */}
                                                     <th className="py-3 px-6 text-left">金額</th>
                                                     <th className="py-3 px-6 text-left">賠率</th>
@@ -998,7 +1004,7 @@
                                                 {filteredBetHistory.map((record, index) => ( /* Added index */
                                                     <tr key={record.id} className="border-b border-gray-200 hover:bg-gray-100">
                                                         <td className="py-3 px-6 text-left whitespace-nowrap">{index + 1}</td> {/* Display serial number */}
-                                                        <td className="py-3 px-6 text-left whitespace-nowrap">{record.date}</td>
+                                                        <td className="py-3 px-6 text-left whitespace-nowrap">{record.date}</td> {/* Display date with time */}
                                                         <td className="py-3 px-6 text-left whitespace-nowrap">{record.eventType}</td> {/* Display event type */}
                                                         <td className="py-3 px-6 text-left whitespace-nowrap">{record.betAmount}</td>
                                                         <td className="py-3 px-6 text-left">{record.odds}</td>
