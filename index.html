@@ -365,14 +365,12 @@
 
                 // Get current local date and time components
                 const now = new Date();
-                const localDateString = now.toLocaleString('zh-TW', {
-                    year: 'numeric',
-                    month: '2-digit',
-                    day: '2-digit',
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    hour12: false // Use 24-hour format
-                }).replace(/\//g, '-'); // Replace slashes with dashes for YYYY-MM-DD HH:mm format
+                const year = now.getFullYear();
+                const month = (now.getMonth() + 1).toString().padStart(2, '0'); // Month is 0-indexed
+                const day = now.getDate().toString().padStart(2, '0');
+                const hours = now.getHours().toString().padStart(2, '0');
+                const minutes = now.getMinutes().toString().padStart(2, '0');
+                const localDateTimeString = `${year}-${month}-${day} ${hours}:${minutes}`; // Format as YYYY-MM-DD HH:mm
 
                 try {
                     const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
@@ -512,10 +510,12 @@
                 // Filter first, then sort by timestamp (id)
                 const filtered = betHistory.filter(record => {
                     // Parse record.date string (YYYY-MM-DD HH:mm) to Date object for comparison
-                    const recordDate = new Date(record.date.split(' ')[0]); // Only compare date part for filtering
+                    // We need to handle the full date-time string now for proper parsing
+                    const recordDate = new Date(record.date.replace(/-/g, '/')); // Replace dashes with slashes for consistent parsing across browsers
                     const start = startDate ? new Date(startDate) : null;
                     const end = endDate ? new Date(endDate) : null;
 
+                    // Adjust end date to include the whole day for filtering purposes if only date is selected
                     if (end) {
                         end.setHours(23, 59, 59, 999);
                     }
@@ -575,7 +575,7 @@
                     return;
                 }
 
-                const headers = ["序號", "日期", "賽事類型", "投注金額", "賠率", "結果", "獲利/虧損"]; // Added 序號
+                const headers = ["序號", "日期時間", "賽事類型", "投注金額", "賠率", "結果", "獲利/虧損"]; // Changed to 日期時間
                 const csvRows = [];
 
                 // Add headers
