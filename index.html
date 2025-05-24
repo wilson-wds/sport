@@ -365,12 +365,14 @@
 
                 // Get current local date and time components
                 const now = new Date();
-                const year = now.getFullYear();
-                const month = (now.getMonth() + 1).toString().padStart(2, '0'); // Month is 0-indexed
-                const day = now.getDate().toString().padStart(2, '0');
-                const hours = now.getHours().toString().padStart(2, '0');
-                const minutes = now.getMinutes().toString().padStart(2, '0');
-                const localDateTimeString = `${year}-${month}-${day} ${hours}:${minutes}`; // Format as YYYY-MM-DD HH:mm
+                const localDateTimeString = now.toLocaleString('zh-TW', {
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: false // Use 24-hour format
+                }).replace(/\//g, '-'); // Replace slashes with dashes forYYYY-MM-DD HH:mm format
 
                 try {
                     const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
@@ -520,8 +522,14 @@
                         end.setHours(23, 59, 59, 999);
                     }
 
-                    const isAfterStartDate = !start || recordDate >= start;
-                    const isBeforeEndDate = !end || recordDate <= end;
+                    // For date filtering, compare only the date part (YYYY-MM-DD)
+                    const recordDateOnly = new Date(record.date.substring(0, 10));
+                    const startDateOnly = startDate ? new Date(startDate) : null;
+                    const endDateOnly = endDate ? new Date(endDate) : null;
+
+                    const isAfterStartDate = !startDateOnly || recordDateOnly >= startDateOnly;
+                    const isBeforeEndDate = !endDateOnly || recordDateOnly <= endDateOnly;
+
 
                     return isAfterStartDate && isBeforeEndDate;
                 });
@@ -536,6 +544,12 @@
                 }
                 return sum;
             }, 0).toFixed(2);
+
+            // Calculate total bet amount from the filtered records
+            const totalBetAmountFiltered = filteredBetHistory.reduce((sum, record) => {
+                return sum + record.betAmount;
+            }, 0).toFixed(2);
+
 
             // Calculate win/loss counts and average win rate from filtered history
             const { totalWins, totalLosses, averageWinRate } = React.useMemo(() => {
@@ -598,6 +612,7 @@
                 // Add the total profit/loss row at the end
                 csvRows.push(''); // Add an empty row for separation
                 csvRows.push(`篩選後總獲利/虧損:,${totalProfitLossFiltered} NTD`);
+                csvRows.push(`當日總投注金額:,${totalBetAmountFiltered} NTD`); // Added total bet amount
                 csvRows.push(`總勝場:,${totalWins}`);
                 csvRows.push(`總敗場:,${totalLosses}`);
                 csvRows.push(`平均勝率:,${averageWinRate}%`);
@@ -693,6 +708,9 @@
                             <span class="${parseFloat(totalProfitLossFiltered) >= 0 ? 'blue-text' : 'red-text'}">
                                 ${totalProfitLossFiltered} NTD
                             </span>
+                        </div>
+                        <div style="text-align: center; margin-top: 10px; font-size: 1em;">
+                            當日總投注金額: ${totalBetAmountFiltered} NTD
                         </div>
                         <div style="text-align: center; margin-top: 10px; font-size: 1em;">
                             總勝場: ${totalWins} | 總敗場: ${totalLosses} | 平均勝率: ${averageWinRate}%
@@ -1001,9 +1019,9 @@
                                                 </tr>
                                             </thead>
                                             <tbody className="text-gray-600 text-sm font-light">
-                                                {filteredBetHistory.map((record, index) => ( /* Added index */
+                                                {filteredBetHistory.map((record) => (
                                                     <tr key={record.id} className="border-b border-gray-200 hover:bg-gray-100">
-                                                        <td className="py-3 px-6 text-left whitespace-nowrap">{index + 1}</td> {/* Display serial number */}
+                                                        <td className="py-3 px-6 text-left whitespace-nowrap">{record.id}</td> {/* Display serial number */}
                                                         <td className="py-3 px-6 text-left whitespace-nowrap">{record.date}</td> {/* Display date with time */}
                                                         <td className="py-3 px-6 text-left whitespace-nowrap">{record.eventType}</td> {/* Display event type */}
                                                         <td className="py-3 px-6 text-left whitespace-nowrap">{record.betAmount}</td>
@@ -1066,6 +1084,7 @@
                                     </div>
                                     {/* Win/Loss Counts and Average Win Rate */}
                                     <div className="mt-2 text-center text-base font-semibold text-gray-700">
+                                        當日總投注金額: <span className="text-blue-700">{totalBetAmountFiltered} NTD</span> |
                                         總勝場: <span className="text-green-700">{totalWins}</span> |
                                         總敗場: <span className="text-red-700">{totalLosses}</span> |
                                         平均勝率: <span className="text-blue-700">{averageWinRate}%</span>
