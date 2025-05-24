@@ -363,7 +363,12 @@
                     return;
                 }
 
-                const localDateString = new Date().toISOString().split('T')[0]; // Get current date
+                // Get current local date components
+                const now = new Date();
+                const year = now.getFullYear();
+                const month = (now.getMonth() + 1).toString().padStart(2, '0'); // Month is 0-indexed
+                const day = now.getDate().toString().padStart(2, '0');
+                const localDateString = `${year}-${month}-${day}`; // Format as YYYY-MM-DD
 
                 try {
                     const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
@@ -388,7 +393,7 @@
                             eventType: eventType.trim(),
                             outcome: null,
                             profitLoss: 0,
-                            date: localDateString,
+                            date: localDateString, // Use local date string
                             status: 'pending',
                             timestamp: window.firebase.serverTimestamp ? window.firebase.serverTimestamp() : Date.now(),
                             addedBy: userId,
