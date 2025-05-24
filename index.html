@@ -43,19 +43,18 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js"; // Added GoogleAuthProvider, signInWithPopup, signOut
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Expose Firebase modules globally for React to access (or pass via context)
         window.firebase = {
             initializeApp,
             getAuth,
             signInAnonymously,
             signInWithCustomToken,
             onAuthStateChanged,
-            GoogleAuthProvider, // Expose GoogleAuthProvider
-            signInWithPopup,    // Expose signInWithPopup
-            signOut,            // Expose signOut
+            GoogleAuthProvider,
+            signInWithPopup,
+            signOut,
             getFirestore,
             doc,
             getDoc,
@@ -100,41 +99,33 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
     <script type="text/babel">
-        // Main App component for the Sports Betting Profit Calculator
         function App() {
-            // Firebase states
             const [db, setDb] = React.useState(null);
             const [auth, setAuth] = React.useState(null);
             const [userId, setUserId] = React.useState(null);
-            const [userName, setUserName] = React.useState(null); // User's display name
-            const [userEmail, setUserEmail] = React.useState(null); // User's email
+            const [userName, setUserName] = React.useState(null);
+            const [userEmail, setUserEmail] = React.useState(null);
             const [isAuthReady, setIsAuthReady] = React.useState(false);
             const [loadingFirebase, setLoadingFirebase] = React.useState(true);
 
-            // App states
-            const [betAmount, setBetAmount] = React.useState(''); // 投注金額
-            const [odds, setOdds] = React.useState('');           // 賠率
-            const [eventType, setEventType] = React.useState(''); // 賽事類型
-            const [singleBetResult, setSingleBetResult] = React.useState(null); // 單次投注計算結果 (獲利/虧損)
-            const [errorMessage, setErrorMessage] = React.useState(''); // 錯誤訊息
-            const [betHistory, setBetHistory] = React.useState([]); // 投注紀錄
+            const [betAmount, setBetAmount] = React.useState('');
+            const [odds, setOdds] = React.useState('');
+            const [eventType, setEventType] = React.useState('');
+            const [singleBetResult, setSingleBetResult] = React.useState(null);
+            const [errorMessage, setErrorMessage] = React.useState('');
+            const [betHistory, setBetHistory] = React.useState([]);
 
-            // Date filtering states
-            const [startDate, setStartDate] = React.useState(''); // 開始日期
-            const [endDate, setEndDate] = React.useState('');     // 結束日期
+            const [startDate, setStartDate] = React.useState('');
+            const [endDate, setEndDate] = React.useState('');
 
-            // Target profit calculation states
-            const [targetProfitAmount, setTargetProfitAmount] = React.useState(''); // 目標獲利金額
-            const [requiredBetForTargetProfit, setRequiredBetForTargetProfit] = React.useState(null); // 為達到目標獲利所需投注金額
+            const [targetProfitAmount, setTargetProfitAmount] = React.useState('');
+            const [requiredBetForTargetProfit, setRequiredBetForTargetProfit] = React.useState(null);
 
-            // State for confirmation dialog visibility for single delete
             const [showConfirmDeleteDialog, setShowConfirmDeleteDialog] = React.useState(false);
-            const [recordToDelete, setRecordToDelete] = React.useState(null); // Stores the ID of the record to delete
+            const [recordToDelete, setRecordToDelete] = React.useState(null);
 
-            // New: State for editing mode
-            const [editingRecordId, setEditingRecordId] = React.useState(null); // Stores the ID of the record being edited
+            const [editingRecordId, setEditingRecordId] = React.useState(null);
 
-            // Suggestions for single bet loss preview
             const singleBetLossSuggestions = [
                 "勝敗乃兵家常事，再接再厲！",
                 "不要氣餒，下次會更好！",
@@ -145,7 +136,6 @@
                 "休息一下，或許能看得更清楚！",
             ];
 
-            // General advice for overall profit
             const generalProfitAdvice = [
                 "恭喜您！持續保持良好的策略和紀律。",
                 "穩健獲利是長期成功的基石，繼續加油！",
@@ -154,7 +144,6 @@
                 "祝您財源廣進，好運連連！",
             ];
 
-            // General advice for overall loss
             const generalLossAdvice = [
                 "別氣餒，每一次虧損都是學習的機會。",
                 "重新檢視您的策略，找出可以改進的地方。",
@@ -164,7 +153,6 @@
                 "調整心態，堅持理性判斷。",
             ];
 
-            // General advice for overall break-even or neutral
             const generalNeutralAdvice = [
                 "收支平衡也是一種成功，保持穩定。",
                 "持續觀察市場，等待更好的機會。",
@@ -172,7 +160,6 @@
                 "這是一個穩定的階段，可以考慮微調策略。",
             ];
 
-            // --- Firebase Initialization and Authentication ---
             React.useEffect(() => {
                 const initializeFirebase = async () => {
                     try {
@@ -184,16 +171,13 @@
                         setAuth(authInstance);
                         setDb(dbInstance);
 
-                        // Listen for auth state changes
                         const unsubscribe = window.firebase.onAuthStateChanged(authInstance, async (user) => {
                             if (user) {
                                 setUserId(user.uid);
-                                setUserName(user.displayName || user.email || '匿名用戶'); // Use display name, then email, then anonymous
+                                setUserName(user.displayName || user.email || '匿名用戶');
                                 setUserEmail(user.email);
                             } else {
-                                // If no user, try anonymous sign-in first as a fallback
                                 try {
-                                    // Only attempt custom token sign-in if token is provided
                                     if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token !== '') {
                                         await window.firebase.signInWithCustomToken(authInstance, __initial_auth_token);
                                     } else {
@@ -204,11 +188,11 @@
                                     setErrorMessage("匿名登入失敗，請檢查 Firebase 認證設定或 API 金鑰。");
                                 }
                             }
-                            setIsAuthReady(true); // Auth state is known
-                            setLoadingFirebase(false); // Firebase is ready
+                            setIsAuthReady(true);
+                            setLoadingFirebase(false);
                         });
 
-                        return () => unsubscribe(); // Cleanup auth listener
+                        return () => unsubscribe();
                     } catch (error) {
                         console.error("Firebase initialization failed:", error);
                         setErrorMessage("Firebase 初始化失敗，請檢查設定。");
@@ -217,9 +201,8 @@
                 };
 
                 initializeFirebase();
-            }, []); // Run only once on mount
+            }, []);
 
-            // --- Google Sign-In Handler ---
             const handleGoogleSignIn = async () => {
                 setErrorMessage('');
                 if (!auth) {
@@ -229,7 +212,6 @@
                 try {
                     const provider = new window.firebase.GoogleAuthProvider();
                     await window.firebase.signInWithPopup(auth, provider);
-                    // User is automatically set by onAuthStateChanged listener
                 } catch (error) {
                     console.error("Google Sign-In failed:", error);
                     let msg = "Google 登入失敗。";
@@ -244,7 +226,6 @@
                 }
             };
 
-            // --- Sign Out Handler ---
             const handleSignOut = async () => {
                 setErrorMessage('');
                 if (!auth) {
@@ -256,20 +237,15 @@
                     setUserId(null);
                     setUserName(null);
                     setUserEmail(null);
-                    setBetHistory([]); // Clear history on sign out
-                    // Optionally, re-sign in anonymously if desired after explicit sign out
-                    // await window.firebase.signInAnonymously(auth);
+                    setBetHistory([]);
                 } catch (error) {
                     console.error("Sign Out failed:", error);
                     setErrorMessage("登出失敗。");
                 }
             };
 
-            // --- Firestore Real-time Data Sync ---
             React.useEffect(() => {
-                // Only run if Firebase is initialized, auth state is known, AND userId is available
                 if (!db || !isAuthReady || !userId) {
-                    // If userId becomes null (e.g., after sign out), clear history
                     if (betHistory.length > 0) {
                         setBetHistory([]);
                     }
@@ -279,18 +255,13 @@
                 let unsubscribe;
                 try {
                     const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-                    // Collection path is now user-specific
                     const bettingHistoryCollectionRef = window.firebase.collection(db, `artifacts/${appId}/users/${userId}/bettingHistory`);
 
-                    // Order by timestamp to maintain insertion order
-                    // Note: Firestore's `orderBy` can be slow without indexes.
-                    // For simplicity, we sort by `id` (which is Date.now() or Firestore doc ID) after fetching.
                     unsubscribe = window.firebase.onSnapshot(bettingHistoryCollectionRef, (snapshot) => {
                         const records = [];
                         snapshot.forEach(doc => {
                             records.push({ id: doc.id, ...doc.data() });
                         });
-                        // Sort by original timestamp (id) to ensure consistent order
                         records.sort((a, b) => a.id - b.id);
                         setBetHistory(records);
                     }, (error) => {
@@ -304,42 +275,35 @@
                 }
 
                 return () => {
-                    if (unsubscribe) unsubscribe(); // Cleanup listener on unmount
+                    if (unsubscribe) unsubscribe();
                 };
-            }, [db, isAuthReady, userId]); // Re-run if db, auth state, or userId changes
+            }, [db, isAuthReady, userId]);
 
-            // Function to perform instant calculation based on current inputs
             const calculateInstantResults = React.useCallback(() => {
                 const parsedBetAmount = parseFloat(betAmount);
                 const parsedOdds = parseFloat(odds);
                 const parsedTargetProfitAmount = parseFloat(targetProfitAmount);
 
-                // --- Calculate for Single Bet Result (Potential Win) ---
                 if (isNaN(parsedBetAmount) || parsedBetAmount <= 0 || isNaN(parsedOdds) || parsedOdds < 1) {
                     setSingleBetResult(null);
                 } else {
-                    // Only calculate potential profit if won
                     const potentialProfitIfWon = (parsedBetAmount * parsedOdds) - parsedBetAmount;
                     setSingleBetResult(potentialProfitIfWon.toFixed(2));
                 }
 
-                // --- Calculate Required Bet for Target Profit ---
                 if (isNaN(parsedTargetProfitAmount) || parsedTargetProfitAmount <= 0 || isNaN(parsedOdds) || parsedOdds < 1 || (parsedOdds - 1) <= 0) {
                     setRequiredBetForTargetProfit(null);
                 } else {
-                    // Formula: Required Bet = Target Profit / (Odds - 1)
                     const requiredBet = parsedTargetProfitAmount / (parsedOdds - 1);
                     setRequiredBetForTargetProfit(requiredBet.toFixed(2));
                 }
 
-            }, [betAmount, odds, targetProfitAmount]); // Dependencies adjusted
+            }, [betAmount, odds, targetProfitAmount]);
 
-            // Use useEffect to trigger instant calculation whenever relevant inputs change
             React.useEffect(() => {
                 calculateInstantResults();
-            }, [betAmount, odds, targetProfitAmount, calculateInstantResults]); // Dependencies adjusted
+            }, [betAmount, odds, targetProfitAmount, calculateInstantResults]);
 
-            // Function to handle adding or updating a record
             const handleSaveRecordButtonClick = async () => {
                 setErrorMessage('');
                 if (!db || !userId) {
@@ -363,7 +327,6 @@
                     return;
                 }
 
-                // Get current local date and time components
                 const now = new Date();
                 const localDateTimeString = now.toLocaleString('zh-TW', {
                     year: 'numeric',
@@ -371,34 +334,30 @@
                     day: '2-digit',
                     hour: '2-digit',
                     minute: '2-digit',
-                    hour12: false // Use 24-hour format
-                }).replace(/\//g, '-'); // Replace slashes with dashes forYYYY-MM-DD HH:mm format
+                    hour12: false
+                }).replace(/\//g, '-');
 
                 try {
                     const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
                     const collectionRef = window.firebase.collection(db, `artifacts/${appId}/users/${userId}/bettingHistory`);
 
                     if (editingRecordId) {
-                        // Update existing record
                         const docRef = window.firebase.doc(collectionRef, editingRecordId);
                         await window.firebase.updateDoc(docRef, {
                             betAmount: parsedBetAmount,
                             odds: parsedOdds,
                             eventType: eventType.trim(),
-                            // date: localDateTimeString, // Don't update date/time on edit unless explicitly intended
-                            // outcome, profitLoss, status, timestamp, addedBy, settledBy, settledAt remain unchanged or are updated via updateBetStatus
                         });
                         setErrorMessage("紀錄已成功更新。");
-                        setEditingRecordId(null); // Exit editing mode
+                        setEditingRecordId(null);
                     } else {
-                        // Add new record
                         await window.firebase.addDoc(collectionRef, {
                             betAmount: parsedBetAmount,
                             odds: parsedOdds,
                             eventType: eventType.trim(),
                             outcome: null,
                             profitLoss: 0,
-                            date: localDateTimeString, // Use local date and time string
+                            date: localDateTimeString,
                             status: 'pending',
                             timestamp: window.firebase.serverTimestamp ? window.firebase.serverTimestamp() : Date.now(),
                             addedBy: userId,
@@ -406,10 +365,7 @@
                         setErrorMessage("新增紀錄成功。");
                     }
 
-                    // Keep betAmount and odds, clear eventType only for new adds
-                    // setBetAmount(''); // Keep value
-                    // setOdds(''); // Keep value
-                    setEventType(''); // Clear event type
+                    setEventType('');
                 }
                 catch (error) {
                     console.error("Error saving document:", error);
@@ -417,7 +373,6 @@
                 }
             };
 
-            // Function to update the status of a bet in history
             const updateBetStatus = async (id, finalOutcome) => {
                 setErrorMessage('');
                 if (!db || !userId) {
@@ -426,7 +381,6 @@
                 }
                 try {
                     const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-                    // Document path is user-specific
                     const docRef = window.firebase.doc(db, `artifacts/${appId}/users/${userId}/bettingHistory`, id);
                     const docSnap = await window.firebase.getDoc(docRef);
 
@@ -443,7 +397,7 @@
                             outcome: finalOutcome,
                             profitLoss: updatedProfitLoss,
                             status: finalOutcome,
-                            settledBy: userId, // Record who settled the bet
+                            settledBy: userId,
                             settledAt: window.firebase.serverTimestamp ? window.firebase.serverTimestamp() : Date.now(),
                         });
                     } else {
@@ -455,19 +409,17 @@
                 }
             };
 
-            // Function to handle editing a record
             const handleEditRecord = (record) => {
                 setBetAmount(record.betAmount.toString());
                 setOdds(record.odds.toString());
                 setEventType(record.eventType);
                 setEditingRecordId(record.id);
-                setErrorMessage(''); // Clear any previous error messages
-                setSingleBetResult(null); // Clear preview result
-                setTargetProfitAmount(''); // Clear target profit calculation
+                setErrorMessage('');
+                setSingleBetResult(null);
+                setTargetProfitAmount('');
                 setRequiredBetForTargetProfit(null);
             };
 
-            // Function to cancel editing
             const handleCancelEdit = () => {
                 setEditingRecordId(null);
                 setBetAmount('');
@@ -479,50 +431,42 @@
                 setRequiredBetForTargetProfit(null);
             };
 
-            // Function to handle deleting a single record
             const handleDeleteRecord = async () => {
                 setErrorMessage('');
                 if (!db || !userId || !recordToDelete) {
                     setErrorMessage("無法刪除紀錄，資料庫未準備好或未登入。");
-                    setShowConfirmDeleteDialog(false); // Hide dialog
-                    setRecordToDelete(null); // Clear pending delete record
+                    setShowConfirmDeleteDialog(false);
+                    setRecordToDelete(null);
                     return;
                 }
 
                 try {
                     const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-                    // Document path is user-specific
                     const docRef = window.firebase.doc(db, `artifacts/${appId}/users/${userId}/bettingHistory`, recordToDelete);
                     await window.firebase.deleteDoc(docRef);
                     
                     setErrorMessage("紀錄已成功刪除。");
-                    setShowConfirmDeleteDialog(false); // Hide dialog
-                    setRecordToDelete(null); // Clear pending delete record
+                    setShowConfirmDeleteDialog(false);
+                    setRecordToDelete(null);
                 } catch (error) {
                     console.error("Error deleting document:", error);
                     setErrorMessage("刪除紀錄失敗。");
-                    setShowConfirmDeleteDialog(false); // Hide dialog
-                    setRecordToDelete(null); // Clear pending delete record
+                    setShowConfirmDeleteDialog(false);
+                    setRecordToDelete(null);
                 }
             };
 
 
-            // Memoized filtered history based on date range
             const filteredBetHistory = React.useMemo(() => {
-                // Filter first, then sort by timestamp (id)
                 const filtered = betHistory.filter(record => {
-                    // Parse record.date string (YYYY-MM-DD HH:mm) to Date object for comparison
-                    // We need to handle the full date-time string now for proper parsing
-                    const recordDate = new Date(record.date.replace(/-/g, '/')); // Replace dashes with slashes for consistent parsing across browsers
+                    const recordDate = new Date(record.date.replace(/-/g, '/'));
                     const start = startDate ? new Date(startDate) : null;
                     const end = endDate ? new Date(endDate) : null;
 
-                    // Adjust end date to include the whole day for filtering purposes if only date is selected
                     if (end) {
                         end.setHours(23, 59, 59, 999);
                     }
 
-                    // For date filtering, compare only the date part (YYYY-MM-DD)
                     const recordDateOnly = new Date(record.date.substring(0, 10));
                     const startDateOnly = startDate ? new Date(startDate) : null;
                     const endDateOnly = endDate ? new Date(endDate) : null;
@@ -533,11 +477,9 @@
 
                     return isAfterStartDate && isBeforeEndDate;
                 });
-                // Sort by ID (which is timestamp from Date.now() or Firestore doc ID)
-                return filtered.sort((a, b) => a.id - b.id); // Display all filtered records, not just last 10
+                return filtered.sort((a, b) => a.id - b.id);
             }, [betHistory, startDate, endDate]);
 
-            // Calculate total profit/loss from the filtered records, only for settled bets
             const totalProfitLossFiltered = filteredBetHistory.reduce((sum, record) => {
                 if (record.status === 'win' || record.status === 'loss') {
                     return sum + record.profitLoss;
@@ -545,13 +487,11 @@
                 return sum;
             }, 0).toFixed(2);
 
-            // Calculate total bet amount from the filtered records
             const totalBetAmountFiltered = filteredBetHistory.reduce((sum, record) => {
                 return sum + record.betAmount;
             }, 0).toFixed(2);
 
 
-            // Calculate win/loss counts and average win rate from filtered history
             const { totalWins, totalLosses, averageWinRate } = React.useMemo(() => {
                 let wins = 0;
                 let losses = 0;
@@ -567,39 +507,34 @@
                 return { totalWins: wins, totalLosses: losses, averageWinRate: avgWinRate };
             }, [filteredBetHistory]);
 
-            // Function to reset all input fields and results (local only for shared data)
             const resetFields = () => {
                 setBetAmount('');
                 setOdds('');
-                setEventType(''); // Reset event type
+                setEventType('');
                 setSingleBetResult(null);
                 setErrorMessage('');
-                // Note: betHistory is not cleared here as it's synced from Firestore (shared data)
-                setStartDate(''); // Clear date filters
-                setEndDate('');   // Clear date filters
-                setTargetProfitAmount(''); // Reset target profit input
-                setRequiredBetForTargetProfit(null); // Reset required bet for target profit
-                setEditingRecordId(null); // Clear editing state
+                setStartDate('');
+                setEndDate('');
+                setTargetProfitAmount('');
+                setRequiredBetForTargetProfit(null);
+                setEditingRecordId(null);
             };
 
-            // Function to export filtered history to CSV
             const exportToCsv = () => {
                 if (filteredBetHistory.length === 0) {
                     setErrorMessage('沒有紀錄可以導出。');
                     return;
                 }
 
-                const headers = ["序號", "日期時間", "賽事類型", "投注金額", "賠率", "結果", "獲利/虧損"]; // Changed to 日期時間
+                const headers = ["序號", "日期時間", "賽事類型", "投注金額", "賠率", "結果", "獲利/虧損"];
                 const csvRows = [];
 
-                // Add headers
                 csvRows.push(headers.join(','));
 
-                // Add data rows
-                filteredBetHistory.forEach((record, index) => { // Added index
+                filteredBetHistory.forEach((record, index) => {
                     const row = [
-                        index + 1, // Serial number
-                        record.date, // Will now include time
+                        index + 1,
+                        record.date,
                         record.eventType,
                         record.betAmount,
                         record.odds,
@@ -609,17 +544,15 @@
                     csvRows.push(row.join(','));
                 });
 
-                // Add the total profit/loss row at the end
-                csvRows.push(''); // Add an empty row for separation
+                csvRows.push('');
                 csvRows.push(`篩選後總獲利/虧損:,${totalProfitLossFiltered} NTD`);
-                csvRows.push(`當日總投注金額:,${totalBetAmountFiltered} NTD`); // Added total bet amount
+                csvRows.push(`當日總投注金額:,${totalBetAmountFiltered} NTD`);
                 csvRows.push(`總勝場:,${totalWins}`);
                 csvRows.push(`總敗場:,${totalLosses}`);
                 csvRows.push(`平均勝率:,${averageWinRate}%`);
 
 
                 const csvString = csvRows.join('\n');
-                // Prepend BOM to the CSV string for proper UTF-8 interpretation in Excel
                 const blob = new Blob(['\ufeff' + csvString], { type: 'text/csv;charset=utf-8;' });
                 const link = document.createElement('a');
                 link.href = URL.createObjectURL(blob);
@@ -627,10 +560,9 @@
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
-                URL.revokeObjectURL(link.href); // Clean up the URL object
+                URL.revokeObjectURL(link.href);
             };
 
-            // Function to trigger browser print for only the history section
             const handlePrintRecordsOnly = () => {
                 const printContent = document.getElementById('bet-history-section');
                 if (!printContent) {
@@ -652,10 +584,10 @@
                             table { width: 100%; border-collapse: collapse; margin-top: 20px; }
                             th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
                             th { background-color: #f2f2f2; }
-                            .profit-text { color: #16A34A; font-weight: bold; } /* green-600 */
-                            .loss-text { color: #DC2626; font-weight: bold; } /* red-600 */
-                            .blue-text { color: #2563EB; font-weight: bold; } /* blue-600 */
-                            .red-text { color: #DC2626; font-weight: bold; } /* red-600 */
+                            .profit-text { color: #16A34A; font-weight: bold; }
+                            .loss-text { color: #DC2626; font-weight: bold; }
+                            .blue-text { color: #2563EB; font-weight: bold; }
+                            .red-text { color: #DC2626; font-weight: bold; }
                             .outcome-badge {
                                 display: inline-block;
                                 padding: 4px 8px;
@@ -664,8 +596,8 @@
                                 font-size: 0.8em;
                                 line-height: 1;
                             }
-                            .win-badge { background-color: #D1FAE5; color: #065F46; } /* green-100, green-800 */
-                            .loss-badge { background-color: #FEE2E2; color: #991B1B; } /* red-100, red-800 */
+                            .win-badge { background-color: #D1FAE5; color: #065F46; }
+                            .loss-badge { background-color: #FEE2E2; color: #991B1B; }
                         </style>
                         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
                     </head>
@@ -674,8 +606,8 @@
                         <table>
                             <thead>
                                 <tr>
-                                    <th>序號</th> {/* Added 序號 */}
-                                    <th>日期時間</th> {/* Changed to 日期時間 */}
+                                    <th>序號</th>
+                                    <th>日期時間</th>
                                     <th>賽事類型</th>
                                     <th>金額</th>
                                     <th>賠率</th>
@@ -684,10 +616,10 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                ${filteredBetHistory.map((record, index) => ` {/* Added index */}
+                                ${filteredBetHistory.map((record, index) => `
                                     <tr>
-                                        <td>${index + 1}</td> {/* Display serial number */}
-                                        <td>${record.date}</td> {/* Will now include time */}
+                                        <td>${index + 1}</td>
+                                        <td>${record.date}</td>
                                         <td>${record.eventType}</td>
                                         <td>${record.betAmount}</td>
                                         <td>${record.odds}</td>
@@ -725,10 +657,9 @@
                 const printWindow = window.open('', '_blank', 'width=800,height=600');
                 if (printWindow) {
                     printWindow.document.write(printContentHtml);
-                    printWindow.document.close(); // Important to close the document for rendering
-                    printWindow.focus(); // Focus the new window
+                    printWindow.document.close();
+                    printWindow.focus();
 
-                    // Use setTimeout to ensure content is rendered before printing
                     printWindow.onload = () => {
                         printWindow.print();
                         printWindow.close();
@@ -760,7 +691,7 @@
                             <span className="font-bold">未登入</span>
                         )}
                         <div className="mt-2 sm:mt-0 flex space-x-2">
-                            {userId && !userEmail ? ( // Show Google Sign-in if anonymous
+                            {userId && !userEmail ? (
                                 <button
                                     onClick={handleGoogleSignIn}
                                     className="bg-blue-500 hover:bg-blue-600 text-white text-xs px-3 py-1 rounded-full transition duration-200"
@@ -768,7 +699,7 @@
                                 >
                                     Google 登入
                                 </button>
-                            ) : userId && userEmail ? ( // Show Sign-out if Google user
+                            ) : userId && userEmail ? (
                                 <button
                                     onClick={handleSignOut}
                                     className="bg-red-500 hover:bg-red-600 text-white text-xs px-3 py-1 rounded-full transition duration-200"
@@ -776,7 +707,7 @@
                                 >
                                     登出
                                 </button>
-                            ) : ( // Show Google Sign-in if not authenticated at all (or anonymous failed)
+                            ) : (
                                 <button
                                     onClick={handleGoogleSignIn}
                                     className="bg-blue-500 hover:bg-blue-600 text-white text-xs px-3 py-1 rounded-full transition duration-200"
@@ -815,10 +746,9 @@
 
 
                     {/* Main container for calculator and history, using flexbox for side-by-side layout */}
-                    <div className="flex flex-col md:flex-row md:space-x-8 w-full max-w-7xl mt-20 sm:mt-24"> {/* Adjusted max-w */}
-
+                    <div className="flex flex-col md:flex-row md:space-x-8 w-full max-w-7xl mt-20 sm:mt-24">
                         {/* Calculator section (left side) */}
-                        <div className="bg-white p-8 rounded-xl shadow-2xl w-full md:w-2/5 mb-8 md:mb-0 transform transition-all duration-300 hover:scale-[1.01]"> {/* Adjusted width */}
+                        <div className="bg-white p-8 rounded-xl shadow-2xl w-full md:w-2/5 mb-8 md:mb-0 transform transition-all duration-300 hover:scale-[1.01]">
                             <h1 className="text-3xl font-extrabold text-gray-900 mb-6 text-center">
                                 投注
                             </h1>
@@ -849,7 +779,7 @@
                                     value={odds}
                                     onChange={(e) => setOdds(e.target.value)}
                                     placeholder="請先輸入賠率"
-                                    step="0.01" // Allow decimal input for odds
+                                    step="0.01"
                                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 ease-in-out text-gray-800"
                                 />
                             </div>
@@ -879,11 +809,11 @@
                             {/* Calculation and Reset buttons */}
                             <div className="flex space-x-4 mb-6">
                                 <button
-                                    onClick={handleSaveRecordButtonClick} // Changed to handleSaveRecordButtonClick
+                                    onClick={handleSaveRecordButtonClick}
                                     className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-75"
-                                    disabled={loadingFirebase || !isAuthReady || !userId} // Disable if Firebase is not ready
+                                    disabled={loadingFirebase || !isAuthReady || !userId}
                                 >
-                                    {editingRecordId ? '更新紀錄' : '新增紀錄'} {/* Dynamic button text */}
+                                    {editingRecordId ? '更新紀錄' : '新增紀錄'}
                                 </button>
                                 <button
                                     onClick={resetFields}
@@ -891,7 +821,7 @@
                                 >
                                     重設
                                 </button>
-                                {editingRecordId && ( /* Show Cancel button only in editing mode */
+                                {editingRecordId && (
                                     <button
                                         onClick={handleCancelEdit}
                                         className="flex-1 bg-gray-500 hover:bg-gray-600 text-white font-bold py-3 px-4 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-75 ml-2"
@@ -911,10 +841,10 @@
                                     {parseFloat(singleBetResult) > 0 && (
                                         <p className="text-sm text-gray-600 mt-2">此為若成功，預期之淨獲利。</p>
                                     )}
-                                    {parseFloat(singleBetResult) === 0 && ( /* Added specific condition for 0 */
+                                    {parseFloat(singleBetResult) === 0 && (
                                         <p className="text-sm text-gray-600 mt-2">此為若成功，預期收支平衡。</p>
                                     )}
-                                    {parseFloat(singleBetResult) < 0 && ( /* Specific condition for negative */
+                                    {parseFloat(singleBetResult) < 0 && (
                                         <>
                                             <p className="text-sm text-gray-600 mt-2">此為若成功，預期之淨虧損。</p>
                                             <p className="text-sm text-red-500 mt-2 italic">
@@ -949,7 +879,7 @@
                                         </span>
                                     </p>
                                 )}
-                                {(parseFloat(odds) < 1.01 && targetProfitAmount !== '') && ( // Added a small threshold for odds - 1
+                                {(parseFloat(odds) < 1.01 && targetProfitAmount !== '') && (
                                     <p className="text-red-500 text-sm mt-2">
                                         賠率過低 (接近1)，無法達到目標獲利，或需投注極大金額。
                                     </p>
@@ -959,11 +889,11 @@
                         </div>
 
                         {/* Display area for the last 10 records (right side) */}
-                        <div id="bet-history-section" className="bg-white p-8 rounded-xl shadow-2xl w-full md:w-3/5 overflow-y-auto max-h-[85vh] min-h-[200px]"> {/* Adjusted width and height */}
+                        <div id="bet-history-section" className="bg-white p-8 rounded-xl shadow-2xl w-full md:w-3/5 overflow-y-auto max-h-[85vh] min-h-[200px]">
                             <h2 className="text-xl font-extrabold text-gray-900 mb-4 text-center">投注紀錄</h2>
 
                             {/* Date filter inputs and Export/Print buttons */}
-                            <div className="mb-4 flex flex-col sm:flex-row sm:space-x-4 items-end"> {/* Align items to bottom for button */}
+                            <div className="mb-4 flex flex-col sm:flex-row sm:space-x-4 items-end">
                                 <div className="flex-1 mb-4 sm:mb-0">
                                     <label htmlFor="startDate" className="block text-gray-700 text-sm font-semibold mb-2">
                                         開始日期:
@@ -1008,22 +938,22 @@
                                         <table className="min-w-full bg-white rounded-lg shadow-md">
                                             <thead>
                                                 <tr className="bg-gray-200 text-gray-700 uppercase text-sm leading-normal">
-                                                    <th className="py-3 px-6 text-left">序號</th> {/* Added 序號 */}
-                                                    <th className="py-3 px-6 text-left">日期時間</th> {/* Changed to 日期時間 */}
-                                                    <th className="py-3 px-6 text-left">賽事類型</th> {/* New column for event type */}
+                                                    <th className="py-3 px-6 text-left">序號</th>
+                                                    <th className="py-3 px-6 text-left">日期時間</th>
+                                                    <th className="py-3 px-6 text-left">賽事類型</th>
                                                     <th className="py-3 px-6 text-left">金額</th>
                                                     <th className="py-3 px-6 text-left">賠率</th>
                                                     <th className="py-3 px-6 text-left">結果</th>
                                                     <th className="py-3 px-6 text-left">獲利/虧損</th>
-                                                    <th className="py-3 px-6 text-left">操作</th> {/* New column for delete button */}
+                                                    <th className="py-3 px-6 text-left">操作</th>
                                                 </tr>
                                             </thead>
                                             <tbody className="text-gray-600 text-sm font-light">
-                                                {filteredBetHistory.map((record) => (
+                                                {filteredBetHistory.map((record, index) => (
                                                     <tr key={record.id} className="border-b border-gray-200 hover:bg-gray-100">
-                                                        <td className="py-3 px-6 text-left whitespace-nowrap">{record.id}</td> {/* Display serial number */}
-                                                        <td className="py-3 px-6 text-left whitespace-nowrap">{record.date}</td> {/* Display date with time */}
-                                                        <td className="py-3 px-6 text-left whitespace-nowrap">{record.eventType}</td> {/* Display event type */}
+                                                        <td className="py-3 px-6 text-left whitespace-nowrap">{index + 1}</td>
+                                                        <td className="py-3 px-6 text-left whitespace-nowrap">{record.date}</td>
+                                                        <td className="py-3 px-6 text-left whitespace-nowrap">{record.eventType}</td>
                                                         <td className="py-3 px-6 text-left whitespace-nowrap">{record.betAmount}</td>
                                                         <td className="py-3 px-6 text-left">{record.odds}</td>
                                                         <td className="py-3 px-6 text-left">
@@ -1053,7 +983,7 @@
                                                         <td className={`py-3 px-6 text-left ${record.status === 'pending' ? 'text-gray-500' : (record.profitLoss >= 0 ? 'text-green-600' : 'text-red-600')}`}>
                                                             {record.status === 'pending' ? '待定' : record.profitLoss.toFixed(2)}
                                                         </td>
-                                                        <td className="py-3 px-6 text-left"> {/* Action buttons column */}
+                                                        <td className="py-3 px-6 text-left">
                                                             <div className="flex space-x-2">
                                                                 <button
                                                                     onClick={() => handleEditRecord(record)}
