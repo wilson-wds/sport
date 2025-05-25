@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>運彩獲利計算模板</title>
+    <title>運彩獲利計算模板 - Ver 1.0</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
     <style>
@@ -481,10 +481,11 @@
 
                     return isAfterStartDate && isBeforeEndDate;
                 });
+                // Sort by date in descending order (newest first)
                 return filtered.sort((a, b) => {
                     const dateA = new Date(a.date.replace(/-/g, '/')).getTime();
                     const dateB = new Date(b.date.replace(/-/g, '/')).getTime();
-                    return dateA - dateB;
+                    return dateB - dateA; // Changed to descending order (newest first)
                 });
             }, [betHistory, startDate, endDate]);
 
@@ -579,6 +580,7 @@
                 }
 
                 // Construct the HTML content for the new print window
+                // Ensure no JSX comments are in the string literal
                 let printContentHtml = `
                     <!DOCTYPE html>
                     <html lang="zh-TW">
