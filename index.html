@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>運彩獲利計算模板 - Ver 1.0</title>
+    <title>運彩獲利計算模板 - Ver 1.01</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
     <style>
@@ -71,9 +71,6 @@
     </script>
 
     <script>
-        // *** 重要：請將 YOUR_FIREBASE_CONFIG_OBJECT_HERE 替換為您從 Firebase Console 取得的完整配置物件 ***
-        // 您可以在 Firebase Console -> 專案設定 -> 「您的應用程式」中找到它。
-        // 範例格式：JSON.stringify({ apiKey: "AIzaSyB...", authDomain: "your-project.firebaseapp.com", projectId: "your-project-id", ... })
         const __firebase_config = JSON.stringify({
           apiKey: "AIzaSyADSbeZr04Rxr0Al5jKVY1u5j9dnD2Bfx4", // <-- 請替換為您的實際 API Key
           authDomain: "wds-sport.firebaseapp.com", // <-- 請替換為您的實際 Auth Domain
@@ -84,13 +81,8 @@
           // measurementId: "YOUR_MEASUREMENT_ID" // 如果有啟用 Google Analytics，請解除註解並替換為您的實際 Measurement ID
         });
 
-        // *** 重要：請自訂一個唯一的應用程式 ID，如果不在 Canvas 環境中運行 ***
-        // 這個 ID 必須與您在 Firestore 安全規則中使用的 {appId} 相符。例如："my-betting-app-shared-data"
         const __app_id = "your-custom-app-id-here"; // <-- 請替換為您自訂的 ID，例如 "my-betting-app-2024"
 
-        // 這是 Canvas 環境特有的初始認證 Token。
-        // 在您本地運行或使用 GitHub Pages 時，此變數通常保持為空字串或移除。
-        // 應用程式會自動回退到匿名登入。
         const __initial_auth_token = ""; 
     </script>
 
@@ -125,6 +117,26 @@
             const [recordToDelete, setRecordToDelete] = React.useState(null);
 
             const [editingRecordId, setEditingRecordId] = React.useState(null);
+
+            // New: Version history data
+            const versionHistoryData = [
+                {
+                    version: "1.01",
+                    date: "2025-05-25",
+                    content: "新增「更新紀錄」按鈕及彈出視窗，顯示版本更新內容。修正列印頁面註解和序號問題。投注紀錄排序改為最新在最上方。",
+                },
+                {
+                    version: "1.0",
+                    date: "2025-05-25",
+                    content: "初始版本：包含投注、投注紀錄、Google登入、編輯/刪除、日期篩選、CSV導出、列印、總獲利/總投注金額、勝負場統計、隨機建議。",
+                },
+            ];
+
+            // State for current version, derived from the latest entry in versionHistoryData
+            const [currentVersion, setCurrentVersion] = React.useState(versionHistoryData[0].version);
+
+            // State for update log modal visibility
+            const [showUpdateLogModal, setShowUpdateLogModal] = React.useState(false);
 
             const singleBetLossSuggestions = [
                 "勝敗乃兵家常事，再接再厲！",
@@ -658,7 +670,7 @@
                             總勝場: ${totalWins} | 總敗場: ${totalLosses} | 平均勝率: ${averageWinRate}%
                         </div>
                         <div style="text-align: center; margin-top: 30px; font-size: 0.8em; color: #6B7280;">
-                            威爾設計版權所有 ver 1.0
+                            威爾設計版權所有 ver ${currentVersion}
                         </div>
                     </body>
                     </html>
@@ -1049,8 +1061,38 @@
                     </div>
                     {/* Copyright notice at the bottom */}
                     <div className="w-full text-center text-gray-600 text-sm mt-8 pb-4">
-                        威爾設計版權所有 ver 1.0
+                        威爾設計版權所有 ver {currentVersion}
+                        <button
+                            onClick={() => setShowUpdateLogModal(true)}
+                            className="ml-2 px-2 py-1 bg-gray-200 hover:bg-gray-300 text-gray-700 text-xs rounded-full transition duration-200"
+                        >
+                            更新紀錄
+                        </button>
                     </div>
+
+                    {/* Update Log Modal */}
+                    {showUpdateLogModal && (
+                        <div className="fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center z-50 p-4">
+                            <div className="bg-white p-6 rounded-lg shadow-xl max-w-md w-full max-h-[80vh] overflow-y-auto">
+                                <h2 className="text-2xl font-bold text-gray-900 mb-4 text-center">更新紀錄</h2>
+                                {versionHistoryData.map((v, i) => (
+                                    <div key={v.version} className={`mb-4 pb-4 ${i < versionHistoryData.length - 1 ? 'border-b border-gray-200' : ''}`}>
+                                        <p className="text-lg font-semibold text-blue-700">版本: {v.version}</p>
+                                        <p className="text-sm text-gray-500 mb-2">日期: {v.date}</p>
+                                        <p className="text-gray-700">{v.content}</p>
+                                    </div>
+                                ))}
+                                <div className="text-center mt-4">
+                                    <button
+                                        onClick={() => setShowUpdateLogModal(false)}
+                                        className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition duration-200"
+                                    >
+                                        關閉
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             );
         }
