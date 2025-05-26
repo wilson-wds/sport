@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>運彩獲利計算模板 - Ver 1.01</title>
+    <title>運彩獲利計算模板 - Ver 1.02</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
     <style>
@@ -71,19 +71,35 @@
     </script>
 
     <script>
+        // ====================================================================================================
+        // *** 重要：請務必將以下 Firebase 配置替換為您自己專案的真實數值！ ***
+        // 您可以在 Firebase Console -> 專案設定 (齒輪圖示) -> 「您的應用程式」中找到它。
+        // 請確保複製的是完整的 JavaScript 物件，例如：{ apiKey: "...", authDomain: "...", ... }
+        // 注意：不要在 JSON.stringify() 內部再加額外的引號，例如 JSON.stringify("{ ... }") 是錯誤的。
+        // ====================================================================================================
         const __firebase_config = JSON.stringify({
-          apiKey: "AIzaSyADSbeZr04Rxr0Al5jKVY1u5j9dnD2Bfx4", // <-- 請替換為您的實際 API Key
-          authDomain: "wds-sport.firebaseapp.com", // <-- 請替換為您的實際 Auth Domain
-          projectId: "wds-sport", // <-- 請替換為您的實際 Project ID
-          storageBucket: "wds-sport.firebasestorage.app", // <-- 請替換為您的實際 Storage Bucket
-          messagingSenderId: "765754214969", // <-- 請替換為您的實際 Sender ID
-          appId: "1:765754214969:web:d0b648f04b8526a3019be8", // <-- 請替換為您的實際 App ID
+          apiKey: "YOUR_API_KEY", // <-- 請替換為您 Firebase 專案的實際 API Key (例如: "AIzaSyB-xxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
+          authDomain: "YOUR_PROJECT_ID.firebaseapp.com", // <-- 請替換為您 Firebase 專案的實際 Auth Domain (例如: "your-project-id.firebaseapp.com")
+          projectId: "YOUR_PROJECT_ID", // <-- 請替換為您 Firebase 專案的實際 Project ID (例如: "your-project-id")
+          storageBucket: "YOUR_PROJECT_ID.appspot.com", // <-- 請替換為您 Firebase 專案的實際 Storage Bucket (例如: "your-project-id.appspot.com")
+          messagingSenderId: "YOUR_SENDER_ID", // <-- 請替換為您 Firebase 專案的實際 Messaging Sender ID (例如: "123456789012")
+          appId: "YOUR_APP_ID", // <-- 請替換為您 Firebase 專案的實際 App ID (例如: "1:123456789012:web:abcdef1234567890abcdef")
           // measurementId: "YOUR_MEASUREMENT_ID" // 如果有啟用 Google Analytics，請解除註解並替換為您的實際 Measurement ID
         });
 
+        // *** 重要：請自訂一個唯一的應用程式 ID，如果不在 Canvas 環境中運行 ***
+        // 這個 ID 必須與您在 Firestore 安全規則中使用的 {appId} 變數完全相符。
+        // 例如：如果您在規則中寫 `match /artifacts/my-betting-app-2024/...`，這裡就填 "my-betting-app-2024"。
+        // 所有使用相同 __app_id 的用戶將共享同一組資料。
         const __app_id = "your-custom-app-id-here"; // <-- 請替換為您自訂的 ID，例如 "my-betting-app-2024"
 
+        // 這是 Canvas 環境特有的初始認證 Token。
+        // 在您本地運行或使用 GitHub Pages 時，此變數通常保持為空字串或移除。
+        // 應用程式會自動回退到匿名登入。
         const __initial_auth_token = ""; 
+        // ====================================================================================================
+        // *** 上述配置替換完畢後，請儲存檔案並重新上傳到您的託管平台！ ***
+        // ====================================================================================================
     </script>
 
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -109,6 +125,7 @@
 
             const [startDate, setStartDate] = React.useState('');
             const [endDate, setEndDate] = React.useState('');
+            // Removed: const [selectedEventTypeFilter, setSelectedEventTypeFilter] = React.useState(''); // Removed event type filter state
 
             const [targetProfitAmount, setTargetProfitAmount] = React.useState('');
             const [requiredBetForTargetProfit, setRequiredBetForTargetProfit] = React.useState(null);
@@ -118,8 +135,13 @@
 
             const [editingRecordId, setEditingRecordId] = React.useState(null);
 
-            // New: Version history data
+            // Version history data (reverted to 1.01 as latest)
             const versionHistoryData = [
+                {
+                    version: "1.02",
+                    date: "2025-05-25",
+                    content: "新增「店家退水」統計。修正列印頁面註解和序號問題。投注紀錄排序改為最新在最上方。",
+                },
                 {
                     version: "1.01",
                     date: "2025-05-25",
@@ -132,10 +154,7 @@
                 },
             ];
 
-            // State for current version, derived from the latest entry in versionHistoryData
             const [currentVersion, setCurrentVersion] = React.useState(versionHistoryData[0].version);
-
-            // State for update log modal visibility
             const [showUpdateLogModal, setShowUpdateLogModal] = React.useState(false);
 
             const singleBetLossSuggestions = [
@@ -490,7 +509,6 @@
                     const isAfterStartDate = !startDateOnly || recordDateOnly >= startDateOnly;
                     const isBeforeEndDate = !endDateOnly || recordDateOnly <= endDateOnly;
 
-
                     return isAfterStartDate && isBeforeEndDate;
                 });
                 // Sort by date in descending order (newest first)
@@ -528,6 +546,21 @@
                 return { totalWins: wins, totalLosses: losses, averageWinRate: avgWinRate };
             }, [filteredBetHistory]);
 
+            // Removed: eventTypeCounts and uniqueEventTypes
+            // const eventTypeCounts = React.useMemo(() => {
+            //     const counts = {};
+            //     filteredBetHistory.forEach(record => {
+            //         counts[record.eventType] = (counts[record.eventType] || 0) + 1;
+            //     });
+            //     return counts;
+            // }, [filteredBetHistory]);
+
+            // const uniqueEventTypes = React.useMemo(() => {
+            //     const types = new Set(betHistory.map(record => record.eventType));
+            //     return ['', ...Array.from(types).sort()];
+            // }, [betHistory]);
+
+
             const resetFields = () => {
                 setBetAmount('');
                 setOdds('');
@@ -536,6 +569,7 @@
                 setErrorMessage('');
                 setStartDate('');
                 setEndDate('');
+                // Removed: setSelectedEventTypeFilter('');
                 setTargetProfitAmount('');
                 setRequiredBetForTargetProfit(null);
                 setEditingRecordId(null);
@@ -571,6 +605,11 @@
                 csvRows.push(`總勝場:,${totalWins}`);
                 csvRows.push(`總敗場:,${totalLosses}`);
                 csvRows.push(`平均勝率:,${averageWinRate}%`);
+                // Removed: eventTypeCounts from CSV
+                // csvRows.push('');
+                // Object.entries(eventTypeCounts).forEach(([type, count]) => {
+                //     csvRows.push(`${type} 投注場次:,${count}`);
+                // });
 
 
                 const csvString = csvRows.join('\n');
@@ -592,7 +631,6 @@
                 }
 
                 // Construct the HTML content for the new print window
-                // Ensure no JSX comments are in the string literal
                 let printContentHtml = `
                     <!DOCTYPE html>
                     <html lang="zh-TW">
@@ -940,6 +978,24 @@
                                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 ease-in-out text-gray-800"
                                     />
                                 </div>
+                                {/* Removed Event Type Filter Dropdown */}
+                                {/* <div className="flex-1 mb-4 sm:mb-0">
+                                    <label htmlFor="eventTypeFilter" className="block text-gray-700 text-sm font-semibold mb-2">
+                                        賽事類型篩選:
+                                    </label>
+                                    <select
+                                        id="eventTypeFilter"
+                                        value={selectedEventTypeFilter}
+                                        onChange={(e) => setSelectedEventTypeFilter(e.target.value)}
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 ease-in-out text-gray-800"
+                                    >
+                                        <option value="">所有類型</option>
+                                        {uniqueEventTypes.map(type => (
+                                            type !== '' && <option key={type} value={type}>{type}</option>
+                                        ))}
+                                    </select>
+                                </div> */}
+
                                 <button
                                     onClick={exportToCsv}
                                     className="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-75 mb-2 sm:mb-0"
@@ -1041,6 +1097,16 @@
                                         總敗場: <span className="text-red-700">{totalLosses}</span> |
                                         平均勝率: <span className="text-blue-700">{averageWinRate}%</span>
                                     </div>
+                                    {/* Removed Event Type Counts Display */}
+                                    {/* {Object.keys(eventTypeCounts).length > 0 && (
+                                        <div className="mt-2 text-center text-base font-semibold text-gray-700">
+                                            {Object.entries(eventTypeCounts).map(([type, count]) => (
+                                                <span key={type} className="mr-4">
+                                                    {type}: <span className="text-blue-700">{count} 場</span>
+                                                </span>
+                                            ))}
+                                        </div>
+                                    )} */}
                                     {/* Conditional General advice for overall profit/loss */}
                                     <div className="mt-4 text-center text-sm text-gray-600 italic">
                                         {parseFloat(totalProfitLossFiltered) > 0 ? (
