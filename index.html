@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>運彩獲利計算模板 - Ver 1.02</title>
+    <title>運彩獲利計算模板 - Ver 1.01</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
     <style>
@@ -137,11 +137,6 @@
 
             // Version history data (reverted to 1.01 as latest)
             const versionHistoryData = [
-                {
-                    version: "1.02",
-                    date: "2025-05-25",
-                    content: "新增「店家退水」統計。修正列印頁面註解和序號問題。投注紀錄排序改為最新在最上方。",
-                },
                 {
                     version: "1.01",
                     date: "2025-05-25",
@@ -871,7 +866,7 @@
                                 <button
                                     onClick={handleSaveRecordButtonClick}
                                     className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-75"
-                                    disabled={loadingFirebase || !isAuthReady || !userId}
+                                    disabled={loadingFirebase || !isAuthReady}
                                 >
                                     {editingRecordId ? '更新紀錄' : '新增紀錄'}
                                 </button>
