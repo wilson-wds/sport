@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>運彩獲利計算模板 - Ver 1.01</title>
+    <title>運彩獲利計算模板 - Ver 1.03</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
     <style>
@@ -81,7 +81,7 @@
           apiKey: "AIzaSyADSbeZr04Rxr0Al5jKVY1u5j9dnD2Bfx4", // <-- 已替換為您圖片中的實際 API Key
           authDomain: "wds-sport.firebaseapp.com", // <-- 已替換為您圖片中的實際 Auth Domain
           projectId: "wds-sport", // <-- 已替換為您圖片中的實際 Project ID
-          storageBucket: "wds-sport.appspot.com", // <-- 已替換為您圖片中的實際 Storage Bucket
+          storageBucket: "wds-sport.firebasestorage.app", // <-- 已替換為您圖片中的實際 Storage Bucket
           messagingSenderId: "765754214969", // <-- 已替換為您圖片中的實際 Sender ID
           appId: "1:765754214969:web:d0b648f04b8526a3019be8", // <-- 沿用之前程式碼中的 App ID
           // measurementId: "YOUR_MEASUREMENT_ID" // 如果有啟用 Google Analytics，請解除註解並替換為您的實際 Measurement ID
@@ -135,8 +135,18 @@
 
             const [editingRecordId, setEditingRecordId] = React.useState(null);
 
-            // Version history data (reverted to 1.01 as latest)
+            // Version history data
             const versionHistoryData = [
+                {
+                    version: "1.03",
+                    date: "2025-05-26",
+                    content: "「新增紀錄」按鈕現在可以透過按下 Enter 鍵來執行。",
+                },
+                {
+                    version: "1.02",
+                    date: "2025-05-26",
+                    content: "新增「店家退水」統計。修正列印頁面註解和序號問題。投注紀錄排序改為最新在最上方。",
+                },
                 {
                     version: "1.01",
                     date: "2025-05-25",
@@ -820,6 +830,7 @@
                                     onChange={(e) => setBetAmount(e.target.value)}
                                     placeholder="例如: 1000"
                                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 ease-in-out text-gray-800"
+                                    onKeyDown={(e) => { if (e.key === 'Enter') handleSaveRecordButtonClick(); }}
                                 />
                             </div>
 
@@ -836,6 +847,7 @@
                                     placeholder="請先輸入賠率"
                                     step="0.01"
                                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 ease-in-out text-gray-800"
+                                    onKeyDown={(e) => { if (e.key === 'Enter') handleSaveRecordButtonClick(); }}
                                 />
                             </div>
 
@@ -851,6 +863,7 @@
                                     onChange={(e) => setEventType(e.target.value)}
                                     placeholder="例如: 足球, 籃球, 棒球"
                                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 ease-in-out text-gray-800"
+                                    onKeyDown={(e) => { if (e.key === 'Enter') handleSaveRecordButtonClick(); }}
                                 />
                             </div>
 
@@ -1035,14 +1048,14 @@
                                                                     <button
                                                                         onClick={() => updateBetStatus(record.id, 'win')}
                                                                         className="bg-green-500 hover:bg-green-600 text-white text-xs px-2 py-1 rounded-md transition duration-200"
-                                                                        disabled={loadingFirebase || !isAuthReady || !userId}
+                                                                        disabled={loadingFirebase || !isAuthReady}
                                                                     >
                                                                         贏
                                                                     </button>
                                                                     <button
                                                                         onClick={() => updateBetStatus(record.id, 'loss')}
                                                                         className="bg-red-500 hover:bg-red-600 text-white text-xs px-2 py-1 rounded-md transition duration-200"
-                                                                        disabled={loadingFirebase || !isAuthReady || !userId}
+                                                                        disabled={loadingFirebase || !isAuthReady}
                                                                     >
                                                                         輸
                                                                     </button>
@@ -1061,14 +1074,14 @@
                                                                 <button
                                                                     onClick={() => handleEditRecord(record)}
                                                                     className="bg-blue-500 hover:bg-blue-600 text-white text-xs px-2 py-1 rounded-md transition duration-200"
-                                                                    disabled={loadingFirebase || !isAuthReady || !userId}
+                                                                    disabled={loadingFirebase || !isAuthReady}
                                                                 >
                                                                     編輯
                                                                 </button>
                                                                 <button
                                                                     onClick={() => { setShowConfirmDeleteDialog(true); setRecordToDelete(record.id); }}
                                                                     className="bg-gray-400 hover:bg-gray-500 text-white text-xs px-2 py-1 rounded-md transition duration-200"
-                                                                    disabled={loadingFirebase || !isAuthReady || !userId}
+                                                                    disabled={loadingFirebase || !isAuthReady}
                                                                 >
                                                                     刪除
                                                                 </button>
@@ -1092,16 +1105,10 @@
                                         總敗場: <span className="text-red-700">{totalLosses}</span> |
                                         平均勝率: <span className="text-blue-700">{averageWinRate}%</span>
                                     </div>
-                                    {/* Removed Event Type Counts Display */}
-                                    {/* {Object.keys(eventTypeCounts).length > 0 && (
-                                        <div className="mt-2 text-center text-base font-semibold text-gray-700">
-                                            {Object.entries(eventTypeCounts).map(([type, count]) => (
-                                                <span key={type} className="mr-4">
-                                                    {type}: <span className="text-blue-700">{count} 場</span>
-                                                </span>
-                                            ))}
-                                        </div>
-                                    )} */}
+                                    {/* New: 店家退水 */}
+                                    <div className="mt-2 text-center text-base font-semibold text-gray-700">
+                                        店家退水: <span className="text-blue-700">{(parseFloat(totalBetAmountFiltered) * 0.04).toFixed(2)} NTD</span>
+                                    </div>
                                     {/* Conditional General advice for overall profit/loss */}
                                     <div className="mt-4 text-center text-sm text-gray-600 italic">
                                         {parseFloat(totalProfitLossFiltered) > 0 ? (
