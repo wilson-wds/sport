@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>運彩獲利計算模板 - Ver 1.03</title>
+    <title>運彩獲利計算模板 - Ver 1.04</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
     <style>
@@ -78,12 +78,12 @@
         // 注意：不要在 JSON.stringify() 內部再加額外的引號，例如 JSON.stringify("{ ... }") 是錯誤的。
         // ====================================================================================================
         const __firebase_config = JSON.stringify({
-          apiKey: "AIzaSyADSbeZr04Rxr0Al5jKVY1u5j9dnD2Bfx4", // <-- 已替換為您圖片中的實際 API Key
-          authDomain: "wds-sport.firebaseapp.com", // <-- 已替換為您圖片中的實際 Auth Domain
-          projectId: "wds-sport", // <-- 已替換為您圖片中的實際 Project ID
-          storageBucket: "wds-sport.firebasestorage.app", // <-- 已替換為您圖片中的實際 Storage Bucket
-          messagingSenderId: "765754214969", // <-- 已替換為您圖片中的實際 Sender ID
-          appId: "1:765754214969:web:d0b648f04b8526a3019be8", // <-- 沿用之前程式碼中的 App ID
+          apiKey: "YOUR_API_KEY", // <-- 請替換為您 Firebase 專案的實際 API Key (例如: "AIzaSyB-xxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
+          authDomain: "YOUR_PROJECT_ID.firebaseapp.com", // <-- 請替換為您 Firebase 專案的實際 Auth Domain (例如: "your-project-id.firebaseapp.com")
+          projectId: "YOUR_PROJECT_ID", // <-- 請替換為您 Firebase 專案的實際 Project ID (例如: "your-project-id")
+          storageBucket: "YOUR_PROJECT_ID.appspot.com", // <-- 請替換為您 Firebase 專案的實際 Storage Bucket (例如: "your-project-id.appspot.com")
+          messagingSenderId: "YOUR_SENDER_ID", // <-- 請替換為您 Firebase 專案的實際 Messaging Sender ID (例如: "123456789012")
+          appId: "YOUR_APP_ID", // <-- 請替換為您 Firebase 專案的實際 App ID (例如: "1:123456789012:web:abcdef1234567890abcdef")
           // measurementId: "YOUR_MEASUREMENT_ID" // 如果有啟用 Google Analytics，請解除註解並替換為您的實際 Measurement ID
         });
 
@@ -107,6 +107,15 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
     <script type="text/babel">
+        // Helper function to get today's date in YYYY-MM-DD format
+        const getTodayDateString = () => {
+            const today = new Date();
+            const year = today.getFullYear();
+            const month = (today.getMonth() + 1).toString().padStart(2, '0');
+            const day = today.getDate().toString().padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        };
+
         function App() {
             const [db, setDb] = React.useState(null);
             const [auth, setAuth] = React.useState(null);
@@ -123,9 +132,10 @@
             const [errorMessage, setErrorMessage] = React.useState('');
             const [betHistory, setBetHistory] = React.useState([]);
 
-            const [startDate, setStartDate] = React.useState('');
-            const [endDate, setEndDate] = React.useState('');
-            // Removed: const [selectedEventTypeFilter, setSelectedEventTypeFilter] = React.useState(''); // Removed event type filter state
+            // Initialize startDate and endDate to today's date
+            const [startDate, setStartDate] = React.useState(getTodayDateString());
+            const [endDate, setEndDate] = React.useState(getTodayDateString());
+            // Removed: const [selectedEventTypeFilter, setSelectedEventTypeFilter] = React.useState('');
 
             const [targetProfitAmount, setTargetProfitAmount] = React.useState('');
             const [requiredBetForTargetProfit, setRequiredBetForTargetProfit] = React.useState(null);
@@ -137,6 +147,11 @@
 
             // Version history data
             const versionHistoryData = [
+                {
+                    version: "1.04",
+                    date: "2025-05-26",
+                    content: "投注紀錄頁面預設顯示當日紀錄，可透過日期選擇器查看其他日期。",
+                },
                 {
                     version: "1.03",
                     date: "2025-05-26",
