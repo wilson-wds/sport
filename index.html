@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>運彩獲利計算模板 - Ver 1.09</title>
+    <title>運彩獲利計算模板 - Ver 1.10</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
     <style>
@@ -115,6 +115,42 @@
             const day = today.getDate().toString().padStart(2, '0');
             return `${year}-${month}-${day}`;
         };
+
+        // Moved outside App function to ensure global accessibility
+        const singleBetLossSuggestions = [
+            "勝敗乃兵家常事，再接再厲！",
+            "不要氣餒，下次會更好！",
+            "換個角度思考，或許能找到新的機會！",
+            "分析更多資訊，保持冷靜的頭腦！",
+            "運氣也是實力的一部分，保持信心！",
+            "短期的波動不代表長期趨勢，堅持您的策略！",
+            "休息一下，或許能看得更清楚！",
+        ];
+
+        const generalProfitAdvice = [
+            "恭喜您！持續保持良好的策略和紀律。",
+            "穩健獲利是長期成功的基石，繼續加油！",
+            "您的努力得到了回報，繼續精進！",
+            "謹慎管理您的資金，讓獲利持續增長。",
+            "祝您財源廣進，好運連連！",
+        ];
+
+        const generalLossAdvice = [
+            "別氣餒，每一次虧損都是學習的機會。",
+            "重新檢視您的策略，找出可以改進的地方。",
+            "控制風險是首要任務，保護您的本金。",
+            "暫時休息一下，讓思緒沉澱再出發。",
+            "分析失利原因，避免重蹈覆轍。",
+            "調整心態，堅持理性判斷。",
+        ];
+
+        const generalNeutralAdvice = [
+            "收支平衡也是一種成功，保持穩定。",
+            "持續觀察市場，等待更好的機會。",
+            "保持耐心，策略的有效性需要時間驗證。",
+            "這是一個穩定的階段，可以考慮微調策略。",
+        ];
+
 
         function App() {
             const [db, setDb] = React.useState(null);
