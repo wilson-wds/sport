@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>運彩獲利計算模板 - Ver 1.06</title>
+    <title>運彩獲利計算模板 - Ver 1.08</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
     <style>
@@ -116,6 +116,42 @@
             return `${year}-${month}-${day}`;
         };
 
+        // Moved outside App function to ensure global accessibility
+        const singleBetLossSuggestions = [
+            "勝敗乃兵家常事，再接再厲！",
+            "不要氣餒，下次會更好！",
+            "換個角度思考，或許能找到新的機會！",
+            "分析更多資訊，保持冷靜的頭腦！",
+            "運氣也是實力的一部分，保持信心！",
+            "短期的波動不代表長期趨勢，堅持您的策略！",
+            "休息一下，或許能看得更清楚！",
+        ];
+
+        const generalProfitAdvice = [
+            "恭喜您！持續保持良好的策略和紀律。",
+            "穩健獲利是長期成功的基石，繼續加油！",
+            "您的努力得到了回報，繼續精進！",
+            "謹慎管理您的資金，讓獲利持續增長。",
+            "祝您財源廣進，好運連連！",
+        ];
+
+        const generalLossAdvice = [
+            "別氣餒，每一次虧損都是學習的機會。",
+            "重新檢視您的策略，找出可以改進的地方。",
+            "控制風險是首要任務，保護您的本金。",
+            "暫時休息一下，讓思緒沉澱再出發。",
+            "分析失利原因，避免重蹈覆轍。",
+            "調整心態，堅持理性判斷。",
+        ];
+
+        const generalNeutralAdvice = [
+            "收支平衡也是一種成功，保持穩定。",
+            "持續觀察市場，等待更好的機會。",
+            "保持耐心，策略的有效性需要時間驗證。",
+            "這是一個穩定的階段，可以考慮微調策略。",
+        ];
+
+
         function App() {
             const [db, setDb] = React.useState(null);
             const [auth, setAuth] = React.useState(null);
@@ -128,15 +164,15 @@
             const [betAmount, setBetAmount] = React.useState('');
             const [odds, setOdds] = React.useState('');
             const [eventType, setEventType] = React.useState('');
-            const [playType, setPlayType] = React.useState(''); // Play Type state
+            const [playType, setPlayType] = React.useState('');
             const [singleBetResult, setSingleBetResult] = React.useState(null);
             const [errorMessage, setErrorMessage] = React.useState('');
             const [betHistory, setBetHistory] = React.useState([]);
 
             const [startDate, setStartDate] = React.useState(getTodayDateString());
             const [endDate, setEndDate] = React.useState(getTodayDateString());
-            const [selectedEventTypeFilter, setSelectedEventTypeFilter] = React.useState(''); // Event type filter state
-            const [selectedPlayTypeFilter, setSelectedPlayTypeFilter] = React.useState(''); // Play type filter state
+            const [selectedEventTypeFilter, setSelectedEventTypeFilter] = React.useState('');
+            const [selectedPlayTypeFilter, setSelectedPlayTypeFilter] = React.useState('');
 
             const [targetProfitAmount, setTargetProfitAmount] = React.useState('');
             const [requiredBetForTargetProfit, setRequiredBetForTargetProfit] = React.useState(null);
@@ -148,6 +184,16 @@
 
             // Version history data
             const versionHistoryData = [
+                {
+                    version: "1.08",
+                    date: "2025-05-27",
+                    content: "修正 Firestore 集合路徑錯誤 (Invalid collection reference)，確保賽事類型和玩法設定能正確儲存和載入。",
+                },
+                {
+                    version: "1.07",
+                    date: "2025-05-27",
+                    content: "新增「設定」導覽鍵與彈出視窗。投注頁面新增「玩法」欄位。賽事類型與玩法新增下拉式篩選，並自動統計各類型投注場次。店家退水百分比可設定。",
+                },
                 {
                     version: "1.06",
                     date: "2025-05-27",
@@ -187,7 +233,7 @@
 
             const [currentVersion, setCurrentVersion] = React.useState(versionHistoryData[0].version);
             const [showUpdateLogModal, setShowUpdateLogModal] = React.useState(false);
-            const [showSettingsModal, setShowSettingsModal] = React.useState(false); // Settings modal visibility
+            const [showSettingsModal, setShowSettingsModal] = React.useState(false);
 
             // Shop Rebate Percentage state, loaded from localStorage
             const [shopRebatePercentage, setShopRebatePercentage] = React.useState(() => {
@@ -209,41 +255,13 @@
                 }
             }, [shopRebatePercentage]);
 
+            // States for managing unique event types and play types in settings
+            const [managedEventTypes, setManagedEventTypes] = React.useState([]);
+            const [managedPlayTypes, setManagedPlayTypes] = React.useState([]);
+            const [newEventTypeInput, setNewEventTypeInput] = React.useState('');
+            const [newPlayTypeInput, setNewPlayTypeInput] = React.useState('');
 
-            const singleBetLossSuggestions = [
-                "勝敗乃兵家常事，再接再厲！",
-                "不要氣餒，下次會更好！",
-                "換個角度思考，或許能找到新的機會！",
-                "分析更多資訊，保持冷靜的頭腦！",
-                "運氣也是實力的一部分，保持信心！",
-                "短期的波動不代表長期趨勢，堅持您的策略！",
-                "休息一下，或許能看得更清楚！",
-            ];
-
-            const generalProfitAdvice = [
-                "恭喜您！持續保持良好的策略和紀律。",
-                "穩健獲利是長期成功的基石，繼續加油！",
-                "您的努力得到了回報，繼續精進！",
-                "謹慎管理您的資金，讓獲利持續增長。",
-                "祝您財源廣進，好運連連！",
-            ];
-
-            const generalLossAdvice = [
-                "別氣餒，每一次虧損都是學習的機會。",
-                "重新檢視您的策略，找出可以改進的地方。",
-                "控制風險是首要任務，保護您的本金。",
-                "暫時休息一下，讓思緒沉澱再出發。",
-                "分析失利原因，避免重蹈覆轍。",
-                "調整心態，堅持理性判斷。",
-            ];
-
-            const generalNeutralAdvice = [
-                "收支平衡也是一種成功，保持穩定。",
-                "持續觀察市場，等待更好的機會。",
-                "保持耐心，策略的有效性需要時間驗證。",
-                "這是一個穩定的階段，可以考慮微調策略。",
-            ];
-
+            // --- Firebase Initialization and Authentication ---
             React.useEffect(() => {
                 const initializeFirebase = async () => {
                     try {
@@ -286,6 +304,36 @@
 
                 initializeFirebase();
             }, []);
+
+            // --- Load managed event types and play types from Firestore ---
+            React.useEffect(() => {
+                if (!db || !isAuthReady || !userId) return;
+
+                const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+                // Corrected path: added 'userSettings' document to make segments odd
+                const eventTypesRef = window.firebase.collection(db, `artifacts/${appId}/users/${userId}/settings/userSettings/eventTypes`);
+                const playTypesRef = window.firebase.collection(db, `artifacts/${appId}/users/${userId}/settings/userSettings/playTypes`);
+
+                const unsubscribeEventTypes = window.firebase.onSnapshot(eventTypesRef, (snapshot) => {
+                    const types = snapshot.docs.map(doc => doc.id); // Use doc.id as the type name
+                    setManagedEventTypes(types.sort());
+                }, (error) => {
+                    console.error("Error fetching event types:", error);
+                });
+
+                const unsubscribePlayTypes = window.firebase.onSnapshot(playTypesRef, (snapshot) => {
+                    const types = snapshot.docs.map(doc => doc.id); // Use doc.id as the type name
+                    setManagedPlayTypes(types.sort());
+                }, (error) => {
+                    console.error("Error fetching play types:", error);
+                });
+
+                return () => {
+                    unsubscribeEventTypes();
+                    unsubscribePlayTypes();
+                };
+            }, [db, isAuthReady, userId]);
+
 
             const handleGoogleSignIn = async () => {
                 setErrorMessage('');
@@ -411,11 +459,11 @@
                     return;
                 }
                 if (eventType.trim() === '') {
-                    setErrorMessage('請輸入賽事類型。');
+                    setErrorMessage('請選擇或輸入賽事類型。');
                     return;
                 }
                 if (playType.trim() === '') {
-                    setErrorMessage('請輸入玩法。');
+                    setErrorMessage('請選擇或輸入玩法。');
                     return;
                 }
 
@@ -457,6 +505,17 @@
                             addedBy: userId,
                         });
                         setErrorMessage("新增紀錄成功。");
+                    }
+
+                    // Also add new eventType/playType to managed lists if they don't exist
+                    const eventTypesSettingsRef = window.firebase.collection(db, `artifacts/${appId}/users/${userId}/settings/userSettings/eventTypes`); // Corrected path
+                    const playTypesSettingsRef = window.firebase.collection(db, `artifacts/${appId}/users/${userId}/settings/userSettings/playTypes`); // Corrected path
+
+                    if (eventType.trim() && !managedEventTypes.includes(eventType.trim())) {
+                        await window.firebase.setDoc(window.firebase.doc(eventTypesSettingsRef, eventType.trim()), { exists: true });
+                    }
+                    if (playType.trim() && !managedPlayTypes.includes(playType.trim())) {
+                        await window.firebase.setDoc(window.firebase.doc(playTypesSettingsRef, playType.trim()), { exists: true });
                     }
 
                     setEventType('');
@@ -615,7 +674,7 @@
                 return { totalWins: wins, totalLosses: losses, averageWinRate: avgWinRate };
             }, [filteredBetHistory]);
 
-            // Calculate event type counts
+            // Calculate event type counts for display
             const eventTypeCounts = React.useMemo(() => {
                 const counts = {};
                 filteredBetHistory.forEach(record => {
@@ -624,13 +683,7 @@
                 return counts;
             }, [filteredBetHistory]);
 
-            // Get unique event types for the filter dropdown
-            const uniqueEventTypes = React.useMemo(() => {
-                const types = new Set(betHistory.map(record => record.eventType));
-                return ['', ...Array.from(types).sort()];
-            }, [betHistory]);
-
-            // Calculate play type counts
+            // Calculate play type counts for display
             const playTypeCounts = React.useMemo(() => {
                 const counts = {};
                 filteredBetHistory.forEach(record => {
@@ -641,18 +694,12 @@
                 return counts;
             }, [filteredBetHistory]);
 
-            // Get unique play types for the filter dropdown
-            const uniquePlayTypes = React.useMemo(() => {
-                const types = new Set(betHistory.map(record => record.playType).filter(Boolean));
-                return ['', ...Array.from(types).sort()];
-            }, [betHistory]);
-
 
             const resetFields = () => {
                 setBetAmount('');
                 setOdds('');
                 setEventType('');
-                setPlayType(''); // Reset play type
+                setPlayType('');
                 setSingleBetResult(null);
                 setErrorMessage('');
                 setStartDate(getTodayDateString());
@@ -950,17 +997,11 @@
                                 <div className="mb-4 border-t pt-4 mt-4">
                                     <h3 className="text-lg font-semibold text-gray-800 mb-2">管理賽事類型</h3>
                                     <div className="flex flex-wrap gap-2 mb-2">
-                                        {Array.from(new Set(betHistory.map(record => record.eventType))).filter(Boolean).sort().map(type => (
+                                        {managedEventTypes.map(type => (
                                             <span key={type} className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-sm flex items-center">
                                                 {type}
                                                 <button
-                                                    onClick={() => {
-                                                        const newTypes = Array.from(new Set(betHistory.map(record => record.eventType))).filter(t => t !== type);
-                                                        // This doesn't directly remove from betHistory, but removes from the unique list.
-                                                        // For actual removal from Firestore, you'd need to update records with this eventType.
-                                                        // For simplicity here, it just affects the dropdown options.
-                                                        setBetHistory(prevHistory => prevHistory.map(rec => rec.eventType === type ? { ...rec, eventType: '' } : rec));
-                                                    }}
+                                                    onClick={() => handleDeleteManagedEventType(type)}
                                                     className="ml-1 text-blue-600 hover:text-blue-800 focus:outline-none"
                                                 >
                                                     &times;
@@ -968,34 +1009,36 @@
                                             </span>
                                         ))}
                                     </div>
-                                    <input
-                                        type="text"
-                                        placeholder="新增賽事類型"
-                                        onKeyDown={(e) => {
-                                            if (e.key === 'Enter' && e.target.value.trim() !== '') {
-                                                // This is just for adding to the local uniqueEventTypes list for the dropdown
-                                                // It doesn't persist to Firestore unless a record is saved with it.
-                                                // For a robust system, you'd save these types to Firestore as well.
-                                                setEventType(e.target.value.trim()); // Set it as current selected
-                                                e.target.value = ''; // Clear input
-                                            }
-                                        }}
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 ease-in-out text-gray-800"
-                                    />
+                                    <div className="flex">
+                                        <input
+                                            type="text"
+                                            placeholder="新增賽事類型"
+                                            value={newEventTypeInput}
+                                            onChange={(e) => setNewEventTypeInput(e.target.value)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') {
+                                                    handleAddManagedEventType();
+                                                }
+                                            }}
+                                            className="flex-grow px-4 py-2 border border-gray-300 rounded-l-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 ease-in-out text-gray-800"
+                                        />
+                                        <button
+                                            onClick={handleAddManagedEventType}
+                                            className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-r-lg transition duration-200"
+                                        >
+                                            新增
+                                        </button>
+                                    </div>
                                 </div>
                                 {/* New: Play Type Management */}
                                 <div className="mb-4 border-t pt-4 mt-4">
                                     <h3 className="text-lg font-semibold text-gray-800 mb-2">管理玩法</h3>
                                     <div className="flex flex-wrap gap-2 mb-2">
-                                        {Array.from(new Set(betHistory.map(record => record.playType))).filter(Boolean).sort().map(type => (
+                                        {managedPlayTypes.map(type => (
                                             <span key={type} className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-sm flex items-center">
                                                 {type}
                                                 <button
-                                                    onClick={() => {
-                                                        const newTypes = Array.from(new Set(betHistory.map(record => record.playType))).filter(t => t !== type);
-                                                        setPlayType(prev => prev === type ? '' : prev); // Clear if currently selected
-                                                        setBetHistory(prevHistory => prevHistory.map(rec => rec.playType === type ? { ...rec, playType: '' } : rec));
-                                                    }}
+                                                    onClick={() => handleDeleteManagedPlayType(type)}
                                                     className="ml-1 text-green-600 hover:text-green-800 focus:outline-none"
                                                 >
                                                     &times;
@@ -1003,21 +1046,30 @@
                                             </span>
                                         ))}
                                     </div>
-                                    <input
-                                        type="text"
-                                        placeholder="新增玩法"
-                                        onKeyDown={(e) => {
-                                            if (e.key === 'Enter' && e.target.value.trim() !== '') {
-                                                setPlayType(e.target.value.trim());
-                                                e.target.value = '';
-                                            }
-                                        }}
-                                        className="w-full px-4 py-2 mt-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 ease-in-out text-gray-800"
-                                    />
+                                    <div className="flex">
+                                        <input
+                                            type="text"
+                                            placeholder="新增玩法"
+                                            value={newPlayTypeInput}
+                                            onChange={(e) => setNewPlayTypeInput(e.target.value)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') {
+                                                    handleAddManagedPlayType();
+                                                }
+                                            }}
+                                            className="flex-grow px-4 py-2 border border-gray-300 rounded-l-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 ease-in-out text-gray-800"
+                                        />
+                                        <button
+                                            onClick={handleAddManagedPlayType}
+                                            className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-r-lg transition duration-200"
+                                        >
+                                            新增
+                                        </button>
+                                    </div>
                                 </div>
                                 <div className="text-center mt-4">
                                     <button
-                                        onClick={() => setShowSettingsModal(false)} // Simply close on "Update" (changes are already applied via state)
+                                        onClick={() => setShowSettingsModal(false)} // Simply close on "確定更新"
                                         className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition duration-200"
                                     >
                                         確定更新
@@ -1080,13 +1132,13 @@
                                     onChange={(e) => setEventType(e.target.value)}
                                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 ease-in-out text-gray-800"
                                 >
-                                    <option value="">請選擇或輸入</option>
-                                    {Array.from(new Set(betHistory.map(record => record.eventType))).filter(Boolean).sort().map(type => (
+                                    <option value="">請選擇</option>
+                                    {managedEventTypes.map(type => (
                                         <option key={type} value={type}>{type}</option>
                                     ))}
                                 </select>
                                 {/* Allow typing new event type if not in dropdown (or if empty string selected) */}
-                                {(!eventType || !Array.from(new Set(betHistory.map(record => record.eventType))).includes(eventType)) && (
+                                {(!eventType || !managedEventTypes.includes(eventType)) && (
                                     <input
                                         type="text"
                                         value={eventType}
@@ -1108,14 +1160,13 @@
                                     value={playType}
                                     onChange={(e) => setPlayType(e.target.value)}
                                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 ease-in-out text-gray-800"
-                                    onKeyDown={(e) => { if (e.key === 'Enter') handleSaveRecordButtonClick(); }}
                                 >
-                                    <option value="">請選擇或輸入</option>
-                                    {Array.from(new Set(betHistory.map(record => record.playType).filter(Boolean))).sort().map(type => (
+                                    <option value="">請選擇</option>
+                                    {managedPlayTypes.map(type => (
                                         <option key={type} value={type}>{type}</option>
                                     ))}
                                 </select>
-                                {(!playType || !Array.from(new Set(betHistory.map(record => record.playType).filter(Boolean))).includes(playType)) && (
+                                {(!playType || !managedPlayTypes.includes(playType)) && (
                                     <input
                                         type="text"
                                         value={playType}
@@ -1258,8 +1309,8 @@
                                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 ease-in-out text-gray-800"
                                     >
                                         <option value="">所有類型</option>
-                                        {Array.from(new Set(betHistory.map(record => record.eventType))).filter(Boolean).sort().map(type => (
-                                            <option key={type} value={type}>{type}</option>
+                                        {managedEventTypes.map(type => (
+                                            type && <option key={type} value={type}>{type}</option>
                                         ))}
                                     </select>
                                 </div>
@@ -1275,8 +1326,8 @@
                                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 ease-in-out text-gray-800"
                                     >
                                         <option value="">所有玩法</option>
-                                        {Array.from(new Set(betHistory.map(record => record.playType).filter(Boolean))).sort().map(type => (
-                                            <option key={type} value={type}>{type}</option>
+                                        {managedPlayTypes.map(type => (
+                                            type && <option key={type} value={type}>{type}</option>
                                         ))}
                                     </select>
                                 </div>
