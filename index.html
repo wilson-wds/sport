@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>運彩獲利計算模板 - Ver 1.08</title>
+    <title>運彩獲利計算模板 - Ver 1.09</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
     <style>
@@ -77,10 +77,10 @@
         // 請確保複製的是完整的 JavaScript 物件，例如：{ apiKey: "...", authDomain: "...", ... }
         // 注意：不要在 JSON.stringify() 內部再加額外的引號，例如 JSON.stringify("{ ... }") 是錯誤的。
         // ====================================================================================================
-         const __firebase_config = JSON.stringify({
-          apiKey: "AIzaSyADSbeZr04Rxr0Al5jKVY1u5j9dnD2Bfx4", // <-- 已替換為您圖片中的實際 API Key
-          authDomain: "wds-sport.firebaseapp.com", // <-- 已替換為您圖片中的實際 Auth Domain
-          projectId: "wds-sport", // <-- 已替換為您圖片中的實際 Project ID
+        const __firebase_config = JSON.stringify({
+          apiKey: "AIzaSyADSbeZr04Rxr0Al5jKVY1u5j9dnD2Bfx4", // <-- 請替換為您 Firebase 專案的實際 API Key (例如: "AIzaSyB-xxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
+          authDomain: "wds-sport.firebaseapp.com", // <-- 請替換為您 Firebase 專案的實際 Auth Domain (例如: "your-project-id.firebaseapp.com")
+          projectId: "wds-sport", // <-- 請替換為您 Firebase 專案的實際 Project ID (例如: "your-project-id")
           storageBucket: "wds-sport.firebasestorage.app", // <-- 已替換為您圖片中的實際 Storage Bucket
           messagingSenderId: "765754214969", // <-- 已替換為您圖片中的實際 Sender ID
           appId: "1:765754214969:web:d0b648f04b8526a3019be8", // <-- 沿用之前程式碼中的 App ID
@@ -107,7 +107,7 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
     <script type="text/babel">
-        // Helper function to get today's date in YYYY-MM-DD format
+        // Helper function to get today's date in replete-MM-DD format
         const getTodayDateString = () => {
             const today = new Date();
             const year = today.getFullYear();
@@ -115,42 +115,6 @@
             const day = today.getDate().toString().padStart(2, '0');
             return `${year}-${month}-${day}`;
         };
-
-        // Moved outside App function to ensure global accessibility
-        const singleBetLossSuggestions = [
-            "勝敗乃兵家常事，再接再厲！",
-            "不要氣餒，下次會更好！",
-            "換個角度思考，或許能找到新的機會！",
-            "分析更多資訊，保持冷靜的頭腦！",
-            "運氣也是實力的一部分，保持信心！",
-            "短期的波動不代表長期趨勢，堅持您的策略！",
-            "休息一下，或許能看得更清楚！",
-        ];
-
-        const generalProfitAdvice = [
-            "恭喜您！持續保持良好的策略和紀律。",
-            "穩健獲利是長期成功的基石，繼續加油！",
-            "您的努力得到了回報，繼續精進！",
-            "謹慎管理您的資金，讓獲利持續增長。",
-            "祝您財源廣進，好運連連！",
-        ];
-
-        const generalLossAdvice = [
-            "別氣餒，每一次虧損都是學習的機會。",
-            "重新檢視您的策略，找出可以改進的地方。",
-            "控制風險是首要任務，保護您的本金。",
-            "暫時休息一下，讓思緒沉澱再出發。",
-            "分析失利原因，避免重蹈覆轍。",
-            "調整心態，堅持理性判斷。",
-        ];
-
-        const generalNeutralAdvice = [
-            "收支平衡也是一種成功，保持穩定。",
-            "持續觀察市場，等待更好的機會。",
-            "保持耐心，策略的有效性需要時間驗證。",
-            "這是一個穩定的階段，可以考慮微調策略。",
-        ];
-
 
         function App() {
             const [db, setDb] = React.useState(null);
@@ -184,6 +148,11 @@
 
             // Version history data
             const versionHistoryData = [
+                {
+                    version: "1.09",
+                    date: "2025-05-27",
+                    content: "修正 `ReferenceError: generalNeutralAdvice is not defined` 錯誤，將建議文字陣列移至 App 函數內部。修正 Firestore 集合路徑錯誤。",
+                },
                 {
                     version: "1.08",
                     date: "2025-05-27",
@@ -508,8 +477,8 @@
                     }
 
                     // Also add new eventType/playType to managed lists if they don't exist
-                    const eventTypesSettingsRef = window.firebase.collection(db, `artifacts/${appId}/users/${userId}/settings/userSettings/eventTypes`); // Corrected path
-                    const playTypesSettingsRef = window.firebase.collection(db, `artifacts/${appId}/users/${userId}/settings/userSettings/playTypes`); // Corrected path
+                    const eventTypesSettingsRef = window.firebase.collection(db, `artifacts/${appId}/users/${userId}/settings/userSettings/eventTypes`);
+                    const playTypesSettingsRef = window.firebase.collection(db, `artifacts/${appId}/users/${userId}/settings/userSettings/playTypes`);
 
                     if (eventType.trim() && !managedEventTypes.includes(eventType.trim())) {
                         await window.firebase.setDoc(window.firebase.doc(eventTypesSettingsRef, eventType.trim()), { exists: true });
@@ -612,6 +581,74 @@
                 }
             };
 
+            // Functions to manage event types in settings
+            const handleAddManagedEventType = async () => {
+                if (newEventTypeInput.trim() === '') {
+                    setErrorMessage("請輸入有效的賽事類型名稱。");
+                    return;
+                }
+                if (managedEventTypes.includes(newEventTypeInput.trim())) {
+                    setErrorMessage("此賽事類型已存在。");
+                    return;
+                }
+                setErrorMessage('');
+                try {
+                    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+                    const eventTypesRef = window.firebase.collection(db, `artifacts/${appId}/users/${userId}/settings/userSettings/eventTypes`);
+                    await window.firebase.setDoc(window.firebase.doc(eventTypesRef, newEventTypeInput.trim()), { exists: true });
+                    setNewEventTypeInput('');
+                } catch (error) {
+                    console.error("Error adding event type:", error);
+                    setErrorMessage("新增賽事類型失敗。");
+                }
+            };
+
+            const handleDeleteManagedEventType = async (typeToDelete) => {
+                setErrorMessage('');
+                try {
+                    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+                    const eventTypesRef = window.firebase.collection(db, `artifacts/${appId}/users/${userId}/settings/userSettings/eventTypes`);
+                    await window.firebase.deleteDoc(window.firebase.doc(eventTypesRef, typeToDelete));
+                } catch (error) {
+                    console.error("Error deleting event type:", error);
+                    setErrorMessage("刪除賽事類型失敗。");
+                }
+            };
+
+            // Functions to manage play types in settings
+            const handleAddManagedPlayType = async () => {
+                if (newPlayTypeInput.trim() === '') {
+                    setErrorMessage("請輸入有效的玩法名稱。");
+                    return;
+                }
+                if (managedPlayTypes.includes(newPlayTypeInput.trim())) {
+                    setErrorMessage("此玩法已存在。");
+                    return;
+                }
+                setErrorMessage('');
+                try {
+                    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+                    const playTypesRef = window.firebase.collection(db, `artifacts/${appId}/users/${userId}/settings/userSettings/playTypes`);
+                    await window.firebase.setDoc(window.firebase.doc(playTypesRef, newPlayTypeInput.trim()), { exists: true });
+                    setNewPlayTypeInput('');
+                } catch (error) {
+                    console.error("Error adding play type:", error);
+                    setErrorMessage("新增玩法失敗。");
+                }
+            };
+
+            const handleDeleteManagedPlayType = async (typeToDelete) => {
+                setErrorMessage('');
+                try {
+                    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+                    const playTypesRef = window.firebase.collection(db, `artifacts/${appId}/users/${userId}/settings/userSettings/playTypes`);
+                    await window.firebase.deleteDoc(window.firebase.doc(playTypesRef, typeToDelete));
+                } catch (error) {
+                    console.error("Error deleting play type:", error);
+                    setErrorMessage("刪除玩法失敗。");
+                }
+            };
+
 
             const filteredBetHistory = React.useMemo(() => {
                 const filtered = betHistory.filter(record => {
@@ -630,7 +667,6 @@
                     const isAfterStartDate = !startDateOnly || recordDateOnly >= startDateOnly;
                     const isBeforeEndDate = !endDateOnly || recordDateOnly <= endDateOnly;
 
-                    // Filter by selected event type AND play type
                     const isMatchingEventType = !selectedEventTypeFilter || record.eventType === selectedEventTypeFilter;
                     const isMatchingPlayType = !selectedPlayTypeFilter || record.playType === selectedPlayTypeFilter;
 
@@ -1217,9 +1253,6 @@
                                     <p className={`text-4xl font-extrabold ${parseFloat(singleBetResult) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                                         {parseFloat(singleBetResult) >= 0 ? '獲利' : '虧損'}: {singleBetResult} NTD
                                     </p>
-                                    {parseFloat(singleBetResult) > 0 && (
-                                        <p className="text-sm text-gray-600 mt-2">此為若成功，預期之淨獲利。</p>
-                                    )}
                                     {parseFloat(singleBetResult) === 0 && (
                                         <p className="text-sm text-gray-600 mt-2">此為若成功，預期收支平衡。</p>
                                     )}
