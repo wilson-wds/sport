@@ -1253,6 +1253,9 @@
                                     <p className={`text-4xl font-extrabold ${parseFloat(singleBetResult) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                                         {parseFloat(singleBetResult) >= 0 ? '獲利' : '虧損'}: {singleBetResult} NTD
                                     </p>
+                                    {parseFloat(singleBetResult) > 0 && (
+                                        <p className="text-sm text-gray-600 mt-2">此為若成功，預期之淨獲利。</p>
+                                    )}
                                     {parseFloat(singleBetResult) === 0 && (
                                         <p className="text-sm text-gray-600 mt-2">此為若成功，預期收支平衡。</p>
                                     )}
