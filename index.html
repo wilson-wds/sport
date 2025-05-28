@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>運彩獲利計算模板 - Ver 1.04</title>
+    <title>運彩獲利計算模板 - Ver 1.06</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
     <style>
@@ -77,7 +77,7 @@
         // 請確保複製的是完整的 JavaScript 物件，例如：{ apiKey: "...", authDomain: "...", ... }
         // 注意：不要在 JSON.stringify() 內部再加額外的引號，例如 JSON.stringify("{ ... }") 是錯誤的。
         // ====================================================================================================
-        const __firebase_config = JSON.stringify({
+         const __firebase_config = JSON.stringify({
           apiKey: "AIzaSyADSbeZr04Rxr0Al5jKVY1u5j9dnD2Bfx4", // <-- 已替換為您圖片中的實際 API Key
           authDomain: "wds-sport.firebaseapp.com", // <-- 已替換為您圖片中的實際 Auth Domain
           projectId: "wds-sport", // <-- 已替換為您圖片中的實際 Project ID
@@ -128,14 +128,15 @@
             const [betAmount, setBetAmount] = React.useState('');
             const [odds, setOdds] = React.useState('');
             const [eventType, setEventType] = React.useState('');
+            const [playType, setPlayType] = React.useState(''); // Play Type state
             const [singleBetResult, setSingleBetResult] = React.useState(null);
             const [errorMessage, setErrorMessage] = React.useState('');
             const [betHistory, setBetHistory] = React.useState([]);
 
-            // Initialize startDate and endDate to today's date
             const [startDate, setStartDate] = React.useState(getTodayDateString());
             const [endDate, setEndDate] = React.useState(getTodayDateString());
-            // Removed: const [selectedEventTypeFilter, setSelectedEventTypeFilter] = React.useState('');
+            const [selectedEventTypeFilter, setSelectedEventTypeFilter] = React.useState(''); // Event type filter state
+            const [selectedPlayTypeFilter, setSelectedPlayTypeFilter] = React.useState(''); // Play type filter state
 
             const [targetProfitAmount, setTargetProfitAmount] = React.useState('');
             const [requiredBetForTargetProfit, setRequiredBetForTargetProfit] = React.useState(null);
@@ -148,9 +149,19 @@
             // Version history data
             const versionHistoryData = [
                 {
+                    version: "1.06",
+                    date: "2025-05-27",
+                    content: "調整投注紀錄區的日期和篩選類型大小，優化文字顯示。投注紀錄排序仍為最新在最上方。",
+                },
+                {
+                    version: "1.05",
+                    date: "2025-05-27",
+                    content: "新增「設定」導覽鍵與彈出視窗。投注頁面新增「玩法」欄位。賽事類型與玩法新增下拉式篩選，並自動統計各類型投注場次。店家退水百分比可設定。",
+                },
+                {
                     version: "1.04",
                     date: "2025-05-26",
-                    content: "投注紀錄頁面預設顯示當日紀錄，可透過日期選擇器查看其他日期。",
+                    content: "投注紀錄頁面預設顯示當日紀錄，可透過日期選擇器查看其他日期。新增「店家退水」統計。",
                 },
                 {
                     version: "1.03",
@@ -176,6 +187,28 @@
 
             const [currentVersion, setCurrentVersion] = React.useState(versionHistoryData[0].version);
             const [showUpdateLogModal, setShowUpdateLogModal] = React.useState(false);
+            const [showSettingsModal, setShowSettingsModal] = React.useState(false); // Settings modal visibility
+
+            // Shop Rebate Percentage state, loaded from localStorage
+            const [shopRebatePercentage, setShopRebatePercentage] = React.useState(() => {
+                try {
+                    const storedRebate = localStorage.getItem('shopRebatePercentage');
+                    return storedRebate ? parseFloat(storedRebate) : 4.0; // Default to 4.0%
+                } catch (e) {
+                    console.error("Failed to load shopRebatePercentage from localStorage", e);
+                    return 4.0;
+                }
+            });
+
+            // Save shopRebatePercentage to localStorage whenever it changes
+            React.useEffect(() => {
+                try {
+                    localStorage.setItem('shopRebatePercentage', shopRebatePercentage.toString());
+                } catch (e) {
+                    console.error("Failed to save shopRebatePercentage to localStorage", e);
+                }
+            }, [shopRebatePercentage]);
+
 
             const singleBetLossSuggestions = [
                 "勝敗乃兵家常事，再接再厲！",
@@ -381,6 +414,10 @@
                     setErrorMessage('請輸入賽事類型。');
                     return;
                 }
+                if (playType.trim() === '') {
+                    setErrorMessage('請輸入玩法。');
+                    return;
+                }
 
                 const now = new Date();
                 const localDateTimeString = now.toLocaleString('zh-TW', {
@@ -402,6 +439,7 @@
                             betAmount: parsedBetAmount,
                             odds: parsedOdds,
                             eventType: eventType.trim(),
+                            playType: playType.trim(),
                         });
                         setErrorMessage("紀錄已成功更新。");
                         setEditingRecordId(null);
@@ -410,6 +448,7 @@
                             betAmount: parsedBetAmount,
                             odds: parsedOdds,
                             eventType: eventType.trim(),
+                            playType: playType.trim(),
                             outcome: null,
                             profitLoss: 0,
                             date: localDateTimeString,
@@ -421,6 +460,7 @@
                     }
 
                     setEventType('');
+                    setPlayType('');
                 }
                 catch (error) {
                     console.error("Error saving document:", error);
@@ -468,6 +508,7 @@
                 setBetAmount(record.betAmount.toString());
                 setOdds(record.odds.toString());
                 setEventType(record.eventType);
+                setPlayType(record.playType || '');
                 setEditingRecordId(record.id);
                 setErrorMessage('');
                 setSingleBetResult(null);
@@ -480,6 +521,7 @@
                 setBetAmount('');
                 setOdds('');
                 setEventType('');
+                setPlayType('');
                 setErrorMessage('');
                 setSingleBetResult(null);
                 setTargetProfitAmount('');
@@ -529,15 +571,20 @@
                     const isAfterStartDate = !startDateOnly || recordDateOnly >= startDateOnly;
                     const isBeforeEndDate = !endDateOnly || recordDateOnly <= endDateOnly;
 
-                    return isAfterStartDate && isBeforeEndDate;
+                    // Filter by selected event type AND play type
+                    const isMatchingEventType = !selectedEventTypeFilter || record.eventType === selectedEventTypeFilter;
+                    const isMatchingPlayType = !selectedPlayTypeFilter || record.playType === selectedPlayTypeFilter;
+
+
+                    return isAfterStartDate && isBeforeEndDate && isMatchingEventType && isMatchingPlayType;
                 });
                 // Sort by date in descending order (newest first)
                 return filtered.sort((a, b) => {
                     const dateA = new Date(a.date.replace(/-/g, '/')).getTime();
                     const dateB = new Date(b.date.replace(/-/g, '/')).getTime();
-                    return dateB - dateA; // Changed to descending order (newest first)
+                    return dateB - dateA;
                 });
-            }, [betHistory, startDate, endDate]);
+            }, [betHistory, startDate, endDate, selectedEventTypeFilter, selectedPlayTypeFilter]);
 
             const totalProfitLossFiltered = filteredBetHistory.reduce((sum, record) => {
                 if (record.status === 'win' || record.status === 'loss') {
@@ -549,6 +596,8 @@
             const totalBetAmountFiltered = filteredBetHistory.reduce((sum, record) => {
                 return sum + record.betAmount;
             }, 0).toFixed(2);
+
+            const shopRebateAmount = (parseFloat(totalBetAmountFiltered) * (shopRebatePercentage / 100)).toFixed(2);
 
 
             const { totalWins, totalLosses, averageWinRate } = React.useMemo(() => {
@@ -566,30 +615,50 @@
                 return { totalWins: wins, totalLosses: losses, averageWinRate: avgWinRate };
             }, [filteredBetHistory]);
 
-            // Removed: eventTypeCounts and uniqueEventTypes
-            // const eventTypeCounts = React.useMemo(() => {
-            //     const counts = {};
-            //     filteredBetHistory.forEach(record => {
-            //         counts[record.eventType] = (counts[record.eventType] || 0) + 1;
-            //     });
-            //     return counts;
-            // }, [filteredBetHistory]);
+            // Calculate event type counts
+            const eventTypeCounts = React.useMemo(() => {
+                const counts = {};
+                filteredBetHistory.forEach(record => {
+                    counts[record.eventType] = (counts[record.eventType] || 0) + 1;
+                });
+                return counts;
+            }, [filteredBetHistory]);
 
-            // const uniqueEventTypes = React.useMemo(() => {
-            //     const types = new Set(betHistory.map(record => record.eventType));
-            //     return ['', ...Array.from(types).sort()];
-            // }, [betHistory]);
+            // Get unique event types for the filter dropdown
+            const uniqueEventTypes = React.useMemo(() => {
+                const types = new Set(betHistory.map(record => record.eventType));
+                return ['', ...Array.from(types).sort()];
+            }, [betHistory]);
+
+            // Calculate play type counts
+            const playTypeCounts = React.useMemo(() => {
+                const counts = {};
+                filteredBetHistory.forEach(record => {
+                    if (record.playType) {
+                        counts[record.playType] = (counts[record.playType] || 0) + 1;
+                    }
+                });
+                return counts;
+            }, [filteredBetHistory]);
+
+            // Get unique play types for the filter dropdown
+            const uniquePlayTypes = React.useMemo(() => {
+                const types = new Set(betHistory.map(record => record.playType).filter(Boolean));
+                return ['', ...Array.from(types).sort()];
+            }, [betHistory]);
 
 
             const resetFields = () => {
                 setBetAmount('');
                 setOdds('');
                 setEventType('');
+                setPlayType(''); // Reset play type
                 setSingleBetResult(null);
                 setErrorMessage('');
-                setStartDate('');
-                setEndDate('');
-                // Removed: setSelectedEventTypeFilter('');
+                setStartDate(getTodayDateString());
+                setEndDate(getTodayDateString());
+                setSelectedEventTypeFilter('');
+                setSelectedPlayTypeFilter('');
                 setTargetProfitAmount('');
                 setRequiredBetForTargetProfit(null);
                 setEditingRecordId(null);
@@ -601,7 +670,7 @@
                     return;
                 }
 
-                const headers = ["序號", "日期時間", "賽事類型", "投注金額", "賠率", "結果", "獲利/虧損"];
+                const headers = ["序號", "日期時間", "賽事類型", "玩法", "投注金額", "賠率", "結果", "獲利/虧損"];
                 const csvRows = [];
 
                 csvRows.push(headers.join(','));
@@ -611,6 +680,7 @@
                         index + 1,
                         record.date,
                         record.eventType,
+                        record.playType || '',
                         record.betAmount,
                         record.odds,
                         record.status === 'pending' ? '待定' : (record.outcome === 'win' ? '贏' : '輸'),
@@ -622,14 +692,17 @@
                 csvRows.push('');
                 csvRows.push(`篩選後總獲利/虧損:,${totalProfitLossFiltered} NTD`);
                 csvRows.push(`當日總投注金額:,${totalBetAmountFiltered} NTD`);
+                csvRows.push(`店家退水:,${shopRebateAmount} NTD`);
                 csvRows.push(`總勝場:,${totalWins}`);
                 csvRows.push(`總敗場:,${totalLosses}`);
                 csvRows.push(`平均勝率:,${averageWinRate}%`);
-                // Removed: eventTypeCounts from CSV
-                // csvRows.push('');
-                // Object.entries(eventTypeCounts).forEach(([type, count]) => {
-                //     csvRows.push(`${type} 投注場次:,${count}`);
-                // });
+                csvRows.push('');
+                Object.entries(eventTypeCounts).forEach(([type, count]) => {
+                    csvRows.push(`${type} 投注場次:,${count}`);
+                });
+                Object.entries(playTypeCounts).forEach(([type, count]) => {
+                    csvRows.push(`${type} 玩法場次:,${count}`);
+                });
 
 
                 const csvString = csvRows.join('\n');
@@ -689,6 +762,7 @@
                                     <th>序號</th>
                                     <th>日期時間</th>
                                     <th>賽事類型</th>
+                                    <th>玩法</th>
                                     <th>金額</th>
                                     <th>賠率</th>
                                     <th>結果</th>
@@ -701,6 +775,7 @@
                                         <td>${index + 1}</td>
                                         <td>${record.date}</td>
                                         <td>${record.eventType}</td>
+                                        <td>${record.playType || ''}</td>
                                         <td>${record.betAmount}</td>
                                         <td>${record.odds}</td>
                                         <td>
@@ -725,8 +800,21 @@
                             當日總投注金額: ${totalBetAmountFiltered} NTD
                         </div>
                         <div style="text-align: center; margin-top: 10px; font-size: 1em;">
+                            店家退水: ${shopRebateAmount} NTD
+                        </div>
+                        <div style="text-align: center; margin-top: 10px; font-size: 1em;">
                             總勝場: ${totalWins} | 總敗場: ${totalLosses} | 平均勝率: ${averageWinRate}%
                         </div>
+                        ${Object.keys(eventTypeCounts).length > 0 ? `
+                            <div style="text-align: center; margin-top: 10px; font-size: 1em;">
+                                ${Object.entries(eventTypeCounts).map(([type, count]) => `${type}: ${count} 場`).join(' | ')}
+                            </div>
+                        ` : ''}
+                        ${Object.keys(playTypeCounts).length > 0 ? `
+                            <div style="text-align: center; margin-top: 10px; font-size: 1em;">
+                                ${Object.entries(playTypeCounts).map(([type, count]) => `${type} 玩法: ${count} 場`).join(' | ')}
+                            </div>
+                        ` : ''}
                         <div style="text-align: center; margin-top: 30px; font-size: 0.8em; color: #6B7280;">
                             威爾設計版權所有 ver ${currentVersion}
                         </div>
@@ -797,6 +885,16 @@
                                 </button>
                             )}
                         </div>
+                        {/* Settings Button */}
+                        <button
+                            onClick={() => setShowSettingsModal(true)}
+                            className="absolute top-2 right-4 p-2 rounded-full bg-gray-200 hover:bg-gray-300 text-gray-700 transition duration-200 focus:outline-none focus:ring-2 focus:ring-gray-400"
+                            title="設定"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                <path fillRule="evenodd" d="M11.49 3.17c-.38-1.16-1.47-1.16-1.85 0L9 4.38a1 1 0 01-.78.78l-1.16.38c-1.16.38-1.16 1.47 0 1.85l.38.78a1 1 0 01.78.78l.38 1.16c.38 1.16 1.47 1.16 1.85 0l.78-.38a1 1 0 01.78-.78l1.16-.38c1.16-.38 1.16-1.47 0-1.85l-.38-.78a1 1 0 01-.78-.78l-.38-1.16zM15.5 13a3.5 3.5 0 11-7 0 3.5 3.5 0 017 0zM17.5 12a.5.5 0 00-.5.5v2a.5.5 0 00.5.5h2a.5.5 0 00.5-.5v-2a.5.5 0 00-.5-.5h-2z" clipRule="evenodd" />
+                            </svg>
+                        </button>
                     </div>
 
 
@@ -818,6 +916,111 @@
                                         className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg transition duration-200"
                                     >
                                         確認刪除
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Settings Modal */}
+                    {showSettingsModal && (
+                        <div className="fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center z-50 p-4">
+                            <div className="bg-white p-6 rounded-lg shadow-xl max-w-md w-full">
+                                <h2 className="text-2xl font-bold text-gray-900 mb-4 text-center">設定</h2>
+                                <div className="mb-4">
+                                    <label htmlFor="shopRebate" className="block text-gray-700 text-sm font-semibold mb-2">
+                                        店家退水百分比 (%):
+                                    </label>
+                                    <input
+                                        type="number"
+                                        id="shopRebate"
+                                        value={shopRebatePercentage}
+                                        onChange={(e) => setShopRebatePercentage(parseFloat(e.target.value) || 0)}
+                                        placeholder="例如: 4.0"
+                                        step="0.1"
+                                        min="0"
+                                        max="100"
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 ease-in-out text-gray-800"
+                                    />
+                                    <p className="text-xs text-gray-500 mt-1">
+                                        用於計算店家退水金額 (總投注金額 x 百分比 / 100)。
+                                    </p>
+                                </div>
+                                {/* New: Event Type Management */}
+                                <div className="mb-4 border-t pt-4 mt-4">
+                                    <h3 className="text-lg font-semibold text-gray-800 mb-2">管理賽事類型</h3>
+                                    <div className="flex flex-wrap gap-2 mb-2">
+                                        {Array.from(new Set(betHistory.map(record => record.eventType))).filter(Boolean).sort().map(type => (
+                                            <span key={type} className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-sm flex items-center">
+                                                {type}
+                                                <button
+                                                    onClick={() => {
+                                                        const newTypes = Array.from(new Set(betHistory.map(record => record.eventType))).filter(t => t !== type);
+                                                        // This doesn't directly remove from betHistory, but removes from the unique list.
+                                                        // For actual removal from Firestore, you'd need to update records with this eventType.
+                                                        // For simplicity here, it just affects the dropdown options.
+                                                        setBetHistory(prevHistory => prevHistory.map(rec => rec.eventType === type ? { ...rec, eventType: '' } : rec));
+                                                    }}
+                                                    className="ml-1 text-blue-600 hover:text-blue-800 focus:outline-none"
+                                                >
+                                                    &times;
+                                                </button>
+                                            </span>
+                                        ))}
+                                    </div>
+                                    <input
+                                        type="text"
+                                        placeholder="新增賽事類型"
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter' && e.target.value.trim() !== '') {
+                                                // This is just for adding to the local uniqueEventTypes list for the dropdown
+                                                // It doesn't persist to Firestore unless a record is saved with it.
+                                                // For a robust system, you'd save these types to Firestore as well.
+                                                setEventType(e.target.value.trim()); // Set it as current selected
+                                                e.target.value = ''; // Clear input
+                                            }
+                                        }}
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 ease-in-out text-gray-800"
+                                    />
+                                </div>
+                                {/* New: Play Type Management */}
+                                <div className="mb-4 border-t pt-4 mt-4">
+                                    <h3 className="text-lg font-semibold text-gray-800 mb-2">管理玩法</h3>
+                                    <div className="flex flex-wrap gap-2 mb-2">
+                                        {Array.from(new Set(betHistory.map(record => record.playType))).filter(Boolean).sort().map(type => (
+                                            <span key={type} className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-sm flex items-center">
+                                                {type}
+                                                <button
+                                                    onClick={() => {
+                                                        const newTypes = Array.from(new Set(betHistory.map(record => record.playType))).filter(t => t !== type);
+                                                        setPlayType(prev => prev === type ? '' : prev); // Clear if currently selected
+                                                        setBetHistory(prevHistory => prevHistory.map(rec => rec.playType === type ? { ...rec, playType: '' } : rec));
+                                                    }}
+                                                    className="ml-1 text-green-600 hover:text-green-800 focus:outline-none"
+                                                >
+                                                    &times;
+                                                </button>
+                                            </span>
+                                        ))}
+                                    </div>
+                                    <input
+                                        type="text"
+                                        placeholder="新增玩法"
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter' && e.target.value.trim() !== '') {
+                                                setPlayType(e.target.value.trim());
+                                                e.target.value = '';
+                                            }
+                                        }}
+                                        className="w-full px-4 py-2 mt-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 ease-in-out text-gray-800"
+                                    />
+                                </div>
+                                <div className="text-center mt-4">
+                                    <button
+                                        onClick={() => setShowSettingsModal(false)} // Simply close on "Update" (changes are already applied via state)
+                                        className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition duration-200"
+                                    >
+                                        確定更新
                                     </button>
                                 </div>
                             </div>
@@ -866,20 +1069,62 @@
                                 />
                             </div>
 
-                            {/* New: Input field for Event Type */}
+                            {/* Event Type Dropdown/Input */}
                             <div className="mb-4">
                                 <label htmlFor="eventType" className="block text-gray-700 text-sm font-semibold mb-2">
                                     賽事類型:
                                 </label>
-                                <input
-                                    type="text"
+                                <select
                                     id="eventType"
                                     value={eventType}
                                     onChange={(e) => setEventType(e.target.value)}
-                                    placeholder="例如: 足球, 籃球, 棒球"
+                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 ease-in-out text-gray-800"
+                                >
+                                    <option value="">請選擇或輸入</option>
+                                    {Array.from(new Set(betHistory.map(record => record.eventType))).filter(Boolean).sort().map(type => (
+                                        <option key={type} value={type}>{type}</option>
+                                    ))}
+                                </select>
+                                {/* Allow typing new event type if not in dropdown (or if empty string selected) */}
+                                {(!eventType || !Array.from(new Set(betHistory.map(record => record.eventType))).includes(eventType)) && (
+                                    <input
+                                        type="text"
+                                        value={eventType}
+                                        onChange={(e) => setEventType(e.target.value)}
+                                        placeholder="輸入新賽事類型"
+                                        className="w-full px-4 py-2 mt-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 ease-in-out text-gray-800"
+                                        onKeyDown={(e) => { if (e.key === 'Enter') handleSaveRecordButtonClick(); }}
+                                    />
+                                )}
+                            </div>
+
+                            {/* Play Type Dropdown/Input */}
+                            <div className="mb-4">
+                                <label htmlFor="playType" className="block text-gray-700 text-sm font-semibold mb-2">
+                                    玩法:
+                                </label>
+                                <select
+                                    id="playType"
+                                    value={playType}
+                                    onChange={(e) => setPlayType(e.target.value)}
                                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 ease-in-out text-gray-800"
                                     onKeyDown={(e) => { if (e.key === 'Enter') handleSaveRecordButtonClick(); }}
-                                />
+                                >
+                                    <option value="">請選擇或輸入</option>
+                                    {Array.from(new Set(betHistory.map(record => record.playType).filter(Boolean))).sort().map(type => (
+                                        <option key={type} value={type}>{type}</option>
+                                    ))}
+                                </select>
+                                {(!playType || !Array.from(new Set(betHistory.map(record => record.playType).filter(Boolean))).includes(playType)) && (
+                                    <input
+                                        type="text"
+                                        value={playType}
+                                        onChange={(e) => setPlayType(e.target.value)}
+                                        placeholder="輸入新玩法"
+                                        className="w-full px-4 py-2 mt-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 ease-in-out text-gray-800"
+                                        onKeyDown={(e) => { if (e.key === 'Enter') handleSaveRecordButtonClick(); }}
+                                    />
+                                )}
                             </div>
 
                             {/* Error message display */}
@@ -889,7 +1134,7 @@
                                 </div>
                             )}
 
-                            {/* Calculation and Reset buttons */}
+                            {/* Calculation and Save/Reset/Cancel buttons */}
                             <div className="flex space-x-4 mb-6">
                                 <button
                                     onClick={handleSaveRecordButtonClick}
@@ -975,7 +1220,7 @@
                         <div id="bet-history-section" className="bg-white p-8 rounded-xl shadow-2xl w-full md:w-3/5 overflow-y-auto max-h-[85vh] min-h-[200px]">
                             <h2 className="text-xl font-extrabold text-gray-900 mb-4 text-center">投注紀錄</h2>
 
-                            {/* Date filter inputs and Export/Print buttons */}
+                            {/* Date and Type filter inputs and Export/Print buttons */}
                             <div className="mb-4 flex flex-col sm:flex-row sm:space-x-4 items-end">
                                 <div className="flex-1 mb-4 sm:mb-0">
                                     <label htmlFor="startDate" className="block text-gray-700 text-sm font-semibold mb-2">
@@ -1001,8 +1246,8 @@
                                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 ease-in-out text-gray-800"
                                     />
                                 </div>
-                                {/* Removed Event Type Filter Dropdown */}
-                                {/* <div className="flex-1 mb-4 sm:mb-0">
+                                {/* Event Type Filter Dropdown */}
+                                <div className="flex-1 mb-4 sm:mb-0">
                                     <label htmlFor="eventTypeFilter" className="block text-gray-700 text-sm font-semibold mb-2">
                                         賽事類型篩選:
                                     </label>
@@ -1013,11 +1258,28 @@
                                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 ease-in-out text-gray-800"
                                     >
                                         <option value="">所有類型</option>
-                                        {uniqueEventTypes.map(type => (
-                                            type !== '' && <option key={type} value={type}>{type}</option>
+                                        {Array.from(new Set(betHistory.map(record => record.eventType))).filter(Boolean).sort().map(type => (
+                                            <option key={type} value={type}>{type}</option>
                                         ))}
                                     </select>
-                                </div> */}
+                                </div>
+                                {/* Play Type Filter Dropdown */}
+                                <div className="flex-1 mb-4 sm:mb-0">
+                                    <label htmlFor="playTypeFilter" className="block text-gray-700 text-sm font-semibold mb-2">
+                                        玩法篩選:
+                                    </label>
+                                    <select
+                                        id="playTypeFilter"
+                                        value={selectedPlayTypeFilter}
+                                        onChange={(e) => setSelectedPlayTypeFilter(e.target.value)}
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 ease-in-out text-gray-800"
+                                    >
+                                        <option value="">所有玩法</option>
+                                        {Array.from(new Set(betHistory.map(record => record.playType).filter(Boolean))).sort().map(type => (
+                                            <option key={type} value={type}>{type}</option>
+                                        ))}
+                                    </select>
+                                </div>
 
                                 <button
                                     onClick={exportToCsv}
@@ -1042,6 +1304,7 @@
                                                     <th className="py-3 px-6 text-left">序號</th>
                                                     <th className="py-3 px-6 text-left">日期時間</th>
                                                     <th className="py-3 px-6 text-left">賽事類型</th>
+                                                    <th className="py-3 px-6 text-left">玩法</th>
                                                     <th className="py-3 px-6 text-left">金額</th>
                                                     <th className="py-3 px-6 text-left">賠率</th>
                                                     <th className="py-3 px-6 text-left">結果</th>
@@ -1055,6 +1318,7 @@
                                                         <td className="py-3 px-6 text-left whitespace-nowrap">{index + 1}</td>
                                                         <td className="py-3 px-6 text-left whitespace-nowrap">{record.date}</td>
                                                         <td className="py-3 px-6 text-left whitespace-nowrap">{record.eventType}</td>
+                                                        <td className="py-3 px-6 text-left whitespace-nowrap">{record.playType}</td>
                                                         <td className="py-3 px-6 text-left whitespace-nowrap">{record.betAmount}</td>
                                                         <td className="py-3 px-6 text-left">{record.odds}</td>
                                                         <td className="py-3 px-6 text-left">
@@ -1122,8 +1386,28 @@
                                     </div>
                                     {/* New: 店家退水 */}
                                     <div className="mt-2 text-center text-base font-semibold text-gray-700">
-                                        店家退水: <span className="text-blue-700">{(parseFloat(totalBetAmountFiltered) * 0.04).toFixed(2)} NTD</span>
+                                        店家退水: <span className="text-blue-700">{(parseFloat(totalBetAmountFiltered) * (shopRebatePercentage / 100)).toFixed(2)} NTD</span>
                                     </div>
+                                    {/* New: Event Type Counts Display */}
+                                    {Object.keys(eventTypeCounts).length > 0 && (
+                                        <div className="mt-2 text-center text-base font-semibold text-gray-700">
+                                            {Object.entries(eventTypeCounts).map(([type, count]) => (
+                                                <span key={type} className="mr-4">
+                                                    {type}: <span className="text-blue-700">{count} 場</span>
+                                                </span>
+                                            ))}
+                                        </div>
+                                    )}
+                                    {/* New: Play Type Counts Display */}
+                                    {Object.keys(playTypeCounts).length > 0 && (
+                                        <div className="mt-2 text-center text-base font-semibold text-gray-700">
+                                            {Object.entries(playTypeCounts).map(([type, count]) => (
+                                                <span key={type} className="mr-4">
+                                                    {type} 玩法: <span className="text-blue-700">{count} 場</span>
+                                                </span>
+                                            ))}
+                                        </div>
+                                    )}
                                     {/* Conditional General advice for overall profit/loss */}
                                     <div className="mt-4 text-center text-sm text-gray-600 italic">
                                         {parseFloat(totalProfitLossFiltered) > 0 ? (
