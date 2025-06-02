@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>運彩獲利計算模板 - Ver 1.16</title>
+    <title>運彩獲利計算模板 - Ver 1.17</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -71,6 +71,34 @@
             getDocs,
             serverTimestamp // 確保 serverTimestamp 也被導出
         };
+    </script>
+    <script>
+        // ====================================================================================================
+        // *** 重要：在 Canvas 環境中，Firebase 配置會自動注入。請勿在此處硬編碼 API 金鑰。***
+        // 如果您在 Canvas 之外運行，請在此處提供您自己的 Firebase 專案配置。
+        // ====================================================================================================
+        const __firebase_config = JSON.stringify({
+          apiKey: "", // <-- 留空，讓 Canvas 環境自動提供
+          authDomain: "wds-sport.firebaseapp.com",
+          projectId: "wds-sport",
+          storageBucket: "wds-sport.firebasestorage.app",
+          messagingSenderId: "765754214969",
+          appId: "1:765754214969:web:d0b648f04b8526a3019be8",
+        });
+
+        // *** 重要：請自訂一個唯一的應用程式 ID，如果不在 Canvas 環境中運行 ***
+        // 這個 ID 必須與您在 Firestore 安全規則中使用的 {appId} 變數完全相符。
+        // 例如：如果您在規則中寫 `match /artifacts/my-betting-app-2024/...`，這裡就填 "my-betting-app-2024"。
+        // 所有使用相同 __app_id 的用戶將共享同一組資料。
+        const __app_id = "your-custom-app-id-here"; // <-- 請替換為您自訂的 ID，例如 "my-betting-app-2024"
+
+        // 這是 Canvas 環境特有的初始認證 Token。
+        // 在您本地運行或使用 GitHub Pages 時，此變數通常保持為空字串或移除。
+        // 應用程式會自動回退到匿名登入。
+        const __initial_auth_token = "";
+        // ====================================================================================================
+        // *** 上述配置替換完畢後，請儲存檔案並重新上傳到您的託管平台！ ***
+        // ====================================================================================================
     </script>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -160,6 +188,11 @@
 
             // Version history data
             const versionHistoryData = [
+                {
+                    version: "1.17",
+                    date: "2025-06-02",
+                    content: "修正 Firebase `auth/invalid-api-key` 錯誤，將 `__firebase_config` 中的 `apiKey` 設置為空字串，以確保 Canvas 環境自動提供正確金鑰。",
+                },
                 {
                     version: "1.16",
                     date: "2025-06-02",
