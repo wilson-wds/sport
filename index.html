@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>運彩獲利計算模板 - Ver 1.21</title>
+    <title>運彩獲利計算模板 - Ver 1.22</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -161,6 +161,11 @@
             // Version history data
             const versionHistoryData = [
                 {
+                    version: "1.22",
+                    date: "2025-06-03",
+                    content: "新增 Firebase 初始化偵錯日誌，幫助用戶檢查 `__firebase_config` 的實際內容和類型。",
+                },
+                {
                     version: "1.21",
                     date: "2025-06-02",
                     content: "再次修正 Firebase 初始化錯誤，確保 `__firebase_config` 被正確解析為 JSON 物件，並嚴格按照 Canvas 環境變數使用規範獲取配置。",
@@ -288,15 +293,38 @@
             React.useEffect(() => {
                 const initializeFirebase = async () => {
                     try {
-                        // 確保 __firebase_config 存在且為字串，然後進行解析
-                        const firebaseConfig = typeof __firebase_config !== 'undefined' && typeof __firebase_config === 'string'
-                            ? JSON.parse(__firebase_config)
-                            : {};
+                        // 加入詳細的偵錯日誌
+                        console.log("[偵錯] 嘗試初始化 Firebase...");
+                        console.log("[偵錯] __firebase_config 的值:", typeof __firebase_config !== 'undefined' ? __firebase_config : "undefined (未定義)");
+                        console.log("[偵錯] __firebase_config 的類型:", typeof __firebase_config);
+
+                        let firebaseConfig = {};
+                        if (typeof __firebase_config !== 'undefined' && typeof __firebase_config === 'string') {
+                            try {
+                                firebaseConfig = JSON.parse(__firebase_config);
+                                console.log("[偵錯] 成功解析 __firebase_config:", firebaseConfig);
+                            } catch (e) {
+                                console.error("[偵錯] 解析 __firebase_config 為 JSON 失敗:", e);
+                                setErrorMessage("Firebase 初始化失敗：配置字串解析錯誤。");
+                                setLoadingFirebase(false);
+                                return;
+                            }
+                        } else if (typeof __firebase_config !== 'undefined' && typeof __firebase_config === 'object' && __firebase_config !== null) {
+                            // 如果它已經是物件，直接使用
+                            firebaseConfig = __firebase_config;
+                            console.log("[偵錯] __firebase_config 已是物件，直接使用:", firebaseConfig);
+                        } else {
+                            console.warn("[偵錯] __firebase_config 既不是字串也不是物件，可能未正確注入。");
+                            setErrorMessage("Firebase 初始化失敗：Canvas 環境變數未正確載入。");
+                            setLoadingFirebase(false);
+                            return;
+                        }
 
                         // 確保 __app_id 存在且為字串
                         const appId = typeof __app_id !== 'undefined' && typeof __app_id === 'string'
                             ? __app_id
                             : 'default-app-id';
+                        console.log("[偵錯] 使用的 App ID:", appId);
 
                         const app = window.firebase.initializeApp(firebaseConfig);
                         const authInstance = window.firebase.getAuth(app);
@@ -314,8 +342,10 @@
                                 try {
                                     // 確保 __initial_auth_token 存在且為字串
                                     if (typeof __initial_auth_token !== 'undefined' && typeof __initial_auth_token === 'string' && __initial_auth_token !== '') {
+                                        console.log("[偵錯] 嘗試使用自訂認證 Token 登入...");
                                         await window.firebase.signInWithCustomToken(authInstance, __initial_auth_token);
                                     } else {
+                                        console.log("[偵錯] 嘗試匿名登入...");
                                         await window.firebase.signInAnonymously(authInstance);
                                     }
                                 } catch (anonError) {
@@ -325,6 +355,7 @@
                             }
                             setIsAuthReady(true);
                             setLoadingFirebase(false);
+                            console.log("[偵錯] Firebase 認證狀態就緒。");
                         });
 
                         return () => unsubscribe();
