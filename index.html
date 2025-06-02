@@ -3,9 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>運彩獲利計算模板 - Ver 1.10</title>
+    <title>運彩獲利計算模板 - Ver 1.16</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body {
             font-family: 'Inter', sans-serif;
@@ -40,12 +41,13 @@
 </head>
 <body>
     <div id="root"></div>
-
     <script type="module">
+        // Firebase 模組導入
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, query, where, getDocs, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
+        // 將 Firebase 模組掛載到 window 物件，以便 React 程式碼可以存取
         window.firebase = {
             initializeApp,
             getAuth,
@@ -66,48 +68,16 @@
             collection,
             query,
             where,
-            getDocs
+            getDocs,
+            serverTimestamp // 確保 serverTimestamp 也被導出
         };
     </script>
-
-    <script>
-        // ====================================================================================================
-        // *** 重要：請務必將以下 Firebase 配置替換為您自己專案的真實數值！ ***
-        // 您可以在 Firebase Console -> 專案設定 (齒輪圖示) -> 「您的應用程式」中找到它。
-        // 請確保複製的是完整的 JavaScript 物件，例如：{ apiKey: "...", authDomain: "...", ... }
-        // 注意：不要在 JSON.stringify() 內部再加額外的引號，例如 JSON.stringify("{ ... }") 是錯誤的。
-        // ====================================================================================================
-        const __firebase_config = JSON.stringify({
-          apiKey: "AIzaSyADSbeZr04Rxr0Al5jKVY1u5j9dnD2Bfx4", // <-- 請替換為您 Firebase 專案的實際 API Key (例如: "AIzaSyB-xxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
-          authDomain: "wds-sport.firebaseapp.com", // <-- 請替換為您 Firebase 專案的實際 Auth Domain (例如: "your-project-id.firebaseapp.com")
-          projectId: "wds-sport", // <-- 請替換為您 Firebase 專案的實際 Project ID (例如: "your-project-id")
-          storageBucket: "wds-sport.firebasestorage.app", // <-- 已替換為您圖片中的實際 Storage Bucket
-          messagingSenderId: "765754214969", // <-- 已替換為您圖片中的實際 Sender ID
-          appId: "1:765754214969:web:d0b648f04b8526a3019be8", // <-- 沿用之前程式碼中的 App ID
-          // measurementId: "YOUR_MEASUREMENT_ID" // 如果有啟用 Google Analytics，請解除註解並替換為您的實際 Measurement ID
-        });
-
-        // *** 重要：請自訂一個唯一的應用程式 ID，如果不在 Canvas 環境中運行 ***
-        // 這個 ID 必須與您在 Firestore 安全規則中使用的 {appId} 變數完全相符。
-        // 例如：如果您在規則中寫 `match /artifacts/my-betting-app-2024/...`，這裡就填 "my-betting-app-2024"。
-        // 所有使用相同 __app_id 的用戶將共享同一組資料。
-        const __app_id = "your-custom-app-id-here"; // <-- 請替換為您自訂的 ID，例如 "my-betting-app-2024"
-
-        // 這是 Canvas 環境特有的初始認證 Token。
-        // 在您本地運行或使用 GitHub Pages 時，此變數通常保持為空字串或移除。
-        // 應用程式會自動回退到匿名登入。
-        const __initial_auth_token = ""; 
-        // ====================================================================================================
-        // *** 上述配置替換完畢後，請儲存檔案並重新上傳到您的託管平台！ ***
-        // ====================================================================================================
-    </script>
-
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
     <script type="text/babel">
-        // Helper function to get today's date in replete-MM-DD format
+        // Helper function to get today's date in YYYY-MM-DD format
         const getTodayDateString = () => {
             const today = new Date();
             const year = today.getFullYear();
@@ -116,7 +86,7 @@
             return `${year}-${month}-${day}`;
         };
 
-        // Moved outside App function to ensure global accessibility
+        // 隨機建議文字陣列 (移至 App 函數外部以避免重複創建)
         const singleBetLossSuggestions = [
             "勝敗乃兵家常事，再接再厲！",
             "不要氣餒，下次會更好！",
@@ -151,7 +121,6 @@
             "這是一個穩定的階段，可以考慮微調策略。",
         ];
 
-
         function App() {
             const [db, setDb] = React.useState(null);
             const [auth, setAuth] = React.useState(null);
@@ -182,8 +151,50 @@
 
             const [editingRecordId, setEditingRecordId] = React.useState(null);
 
+            // 新增跑馬燈文字狀態
+            const [marqueeText, setMarqueeText] = React.useState('歡迎使用運彩獲利計算模板！請理性投注，享受樂趣！');
+
+            // 新增圖表彈出視窗狀態
+            const [showChartModal, setShowChartModal] = React.useState(false);
+            const chartRef = React.useRef(null); // Ref for Chart.js canvas
+
             // Version history data
             const versionHistoryData = [
+                {
+                    version: "1.16",
+                    date: "2025-06-02",
+                    content: "新增統計圖表導覽鍵，點擊後彈出視窗顯示篩選後總獲利/虧損的每日走勢圖。",
+                },
+                {
+                    version: "1.15",
+                    date: "2025-06-02",
+                    content: "修正頂部資訊欄和跑馬燈的排版，使其不再被遮擋並正常顯示。",
+                },
+                {
+                    version: "1.14",
+                    date: "2025-06-02",
+                    content: "將跑馬燈移至投注和投注紀錄區塊的上方，改善整體排版。",
+                },
+                {
+                    version: "1.13",
+                    date: "2025-06-02",
+                    content: "新增文字跑馬燈功能，並可在設定頁面中設定文字內容。店家退水百分比設定也移至 Firestore 進行管理。",
+                },
+                {
+                    version: "1.12",
+                    date: "2025-06-02",
+                    content: "修正 Firestore 集合路徑錯誤 (Invalid collection reference)，確保賽事類型和玩法設定能正確儲存和載入。",
+                },
+                {
+                    version: "1.11",
+                    date: "2025-06-02",
+                    content: "Firebase 配置安全性強化，移除硬編碼金鑰。修正 Firestore 集合路徑錯誤，確保賽事類型和玩法設定能正確儲存和載入。程式碼優化。",
+                },
+                {
+                    version: "1.10",
+                    date: "2025-05-28",
+                    content: "修正 `ReferenceError: generalNeutralAdvice is not defined` 錯誤，將建議文字陣列移至 App 函數外部。修正 Firestore 集合路徑錯誤。",
+                },
                 {
                     version: "1.09",
                     date: "2025-05-27",
@@ -235,30 +246,12 @@
                     content: "初始版本：包含投注、投注紀錄、Google登入、編輯/刪除、日期篩選、CSV導出、列印、總獲利/總投注金額、勝負場統計、隨機建議。",
                 },
             ];
-
             const [currentVersion, setCurrentVersion] = React.useState(versionHistoryData[0].version);
             const [showUpdateLogModal, setShowUpdateLogModal] = React.useState(false);
             const [showSettingsModal, setShowSettingsModal] = React.useState(false);
 
-            // Shop Rebate Percentage state, loaded from localStorage
-            const [shopRebatePercentage, setShopRebatePercentage] = React.useState(() => {
-                try {
-                    const storedRebate = localStorage.getItem('shopRebatePercentage');
-                    return storedRebate ? parseFloat(storedRebate) : 4.0; // Default to 4.0%
-                } catch (e) {
-                    console.error("Failed to load shopRebatePercentage from localStorage", e);
-                    return 4.0;
-                }
-            });
-
-            // Save shopRebatePercentage to localStorage whenever it changes
-            React.useEffect(() => {
-                try {
-                    localStorage.setItem('shopRebatePercentage', shopRebatePercentage.toString());
-                } catch (e) {
-                    console.error("Failed to save shopRebatePercentage to localStorage", e);
-                }
-            }, [shopRebatePercentage]);
+            // Shop Rebate Percentage state, now primarily loaded from Firestore
+            const [shopRebatePercentage, setShopRebatePercentage] = React.useState(4.0); // Default value
 
             // States for managing unique event types and play types in settings
             const [managedEventTypes, setManagedEventTypes] = React.useState([]);
@@ -270,7 +263,10 @@
             React.useEffect(() => {
                 const initializeFirebase = async () => {
                     try {
+                        // 從 Canvas 環境變數獲取 Firebase 配置和 App ID
                         const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+                        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id'; // 確保 appId 可用
+
                         const app = window.firebase.initializeApp(firebaseConfig);
                         const authInstance = window.firebase.getAuth(app);
                         const dbInstance = window.firebase.getFirestore(app);
@@ -285,13 +281,14 @@
                                 setUserEmail(user.email);
                             } else {
                                 try {
+                                    // 嘗試使用 Canvas 環境提供的自訂認證 Token 登入，否則匿名登入
                                     if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token !== '') {
                                         await window.firebase.signInWithCustomToken(authInstance, __initial_auth_token);
                                     } else {
                                         await window.firebase.signInAnonymously(authInstance);
                                     }
                                 } catch (anonError) {
-                                    console.error("Anonymous sign-in failed:", anonError);
+                                    console.error("匿名登入失敗:", anonError);
                                     setErrorMessage("匿名登入失敗，請檢查 Firebase 認證設定或 API 金鑰。");
                                 }
                             }
@@ -301,7 +298,7 @@
 
                         return () => unsubscribe();
                     } catch (error) {
-                        console.error("Firebase initialization failed:", error);
+                        console.error("Firebase 初始化失敗:", error);
                         setErrorMessage("Firebase 初始化失敗，請檢查設定。");
                         setLoadingFirebase(false);
                     }
@@ -310,35 +307,56 @@
                 initializeFirebase();
             }, []);
 
-            // --- Load managed event types and play types from Firestore ---
+            // --- Load managed event types, play types, and user settings from Firestore ---
             React.useEffect(() => {
                 if (!db || !isAuthReady || !userId) return;
 
                 const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-                // Corrected path: added 'userSettings' document to make segments odd
+                const userSettingsDocRef = window.firebase.doc(db, `artifacts/${appId}/users/${userId}/settings/userSettings`);
                 const eventTypesRef = window.firebase.collection(db, `artifacts/${appId}/users/${userId}/settings/userSettings/eventTypes`);
                 const playTypesRef = window.firebase.collection(db, `artifacts/${appId}/users/${userId}/settings/userSettings/playTypes`);
 
+                // Listen for user settings (marquee text and shop rebate)
+                const unsubscribeSettings = window.firebase.onSnapshot(userSettingsDocRef, (docSnap) => {
+                    if (docSnap.exists()) {
+                        const data = docSnap.data();
+                        setMarqueeText(data.marqueeText || '歡迎使用運彩獲利計算模板！請理性投注，享受樂趣！');
+                        setShopRebatePercentage(data.shopRebatePercentage !== undefined ? parseFloat(data.shopRebatePercentage) : 4.0);
+                    } else {
+                        // If userSettings document doesn't exist, initialize with defaults
+                        setMarqueeText('歡迎使用運彩獲利計算模板！請理性投注，享受樂趣！');
+                        setShopRebatePercentage(4.0);
+                        // Optionally, save these defaults to Firestore immediately
+                        // window.firebase.setDoc(userSettingsDocRef, { marqueeText: '...', shopRebatePercentage: 4.0 }, { merge: true });
+                    }
+                }, (error) => {
+                    console.error("Error fetching user settings:", error);
+                    setMarqueeText('歡迎使用運彩獲利計算模板！請理性投注，享受樂趣！'); // Fallback on error
+                    setShopRebatePercentage(4.0); // Fallback on error
+                });
+
+                // Listen for managed event types
                 const unsubscribeEventTypes = window.firebase.onSnapshot(eventTypesRef, (snapshot) => {
-                    const types = snapshot.docs.map(doc => doc.id); // Use doc.id as the type name
+                    const types = snapshot.docs.map(doc => doc.id);
                     setManagedEventTypes(types.sort());
                 }, (error) => {
                     console.error("Error fetching event types:", error);
                 });
 
+                // Listen for managed play types
                 const unsubscribePlayTypes = window.firebase.onSnapshot(playTypesRef, (snapshot) => {
-                    const types = snapshot.docs.map(doc => doc.id); // Use doc.id as the type name
+                    const types = snapshot.docs.map(doc => doc.id);
                     setManagedPlayTypes(types.sort());
                 }, (error) => {
                     console.error("Error fetching play types:", error);
                 });
 
                 return () => {
+                    unsubscribeSettings();
                     unsubscribeEventTypes();
                     unsubscribePlayTypes();
                 };
             }, [db, isAuthReady, userId]);
-
 
             const handleGoogleSignIn = async () => {
                 setErrorMessage('');
@@ -374,14 +392,16 @@
                     setUserId(null);
                     setUserName(null);
                     setUserEmail(null);
-                    setBetHistory([]);
+                    setBetHistory([]); // 清空歷史紀錄
                 } catch (error) {
                     console.error("Sign Out failed:", error);
                     setErrorMessage("登出失敗。");
                 }
             };
 
+            // Firestore 實時監聽投注歷史紀錄
             React.useEffect(() => {
+                // 如果 Firebase 未初始化或用戶未登入，則清空歷史紀錄並返回
                 if (!db || !isAuthReady || !userId) {
                     if (betHistory.length > 0) {
                         setBetHistory([]);
@@ -399,10 +419,11 @@
                         snapshot.forEach(doc => {
                             records.push({ id: doc.id, ...doc.data() });
                         });
+                        // 根據 timestamp 排序，最新的在最上方
                         records.sort((a, b) => {
-                            const timeA = a.timestamp ? (a.timestamp.toDate ? a.timestamp.toDate().getTime() : a.timestamp) : a.id;
-                            const timeB = b.timestamp ? (b.timestamp.toDate ? b.timestamp.toDate().getTime() : b.timestamp) : b.id;
-                            return timeA - timeB;
+                            const timeA = a.timestamp ? (a.timestamp.toDate ? a.timestamp.toDate().getTime() : a.timestamp) : 0;
+                            const timeB = b.timestamp ? (b.timestamp.toDate ? b.timestamp.toDate().getTime() : b.timestamp) : 0;
+                            return timeB - timeA; // 降序排列 (最新在最上方)
                         });
                         setBetHistory(records);
                     }, (error) => {
@@ -418,8 +439,9 @@
                 return () => {
                     if (unsubscribe) unsubscribe();
                 };
-            }, [db, isAuthReady, userId]);
+            }, [db, isAuthReady, userId]); // 依賴項包含 db, isAuthReady, userId
 
+            // 計算單次投注預覽和目標獲利所需投注金額
             const calculateInstantResults = React.useCallback(() => {
                 const parsedBetAmount = parseFloat(betAmount);
                 const parsedOdds = parseFloat(odds);
@@ -438,13 +460,14 @@
                     const requiredBet = parsedTargetProfitAmount / (parsedOdds - 1);
                     setRequiredBetForTargetProfit(requiredBet.toFixed(2));
                 }
-
             }, [betAmount, odds, targetProfitAmount]);
 
+            // 當投注金額、賠率或目標獲利金額改變時，重新計算
             React.useEffect(() => {
                 calculateInstantResults();
             }, [betAmount, odds, targetProfitAmount, calculateInstantResults]);
 
+            // 處理儲存或更新紀錄按鈕點擊
             const handleSaveRecordButtonClick = async () => {
                 setErrorMessage('');
                 if (!db || !userId) {
@@ -487,6 +510,7 @@
                     const collectionRef = window.firebase.collection(db, `artifacts/${appId}/users/${userId}/bettingHistory`);
 
                     if (editingRecordId) {
+                        // 更新現有紀錄
                         const docRef = window.firebase.doc(collectionRef, editingRecordId);
                         await window.firebase.updateDoc(docRef, {
                             betAmount: parsedBetAmount,
@@ -495,24 +519,25 @@
                             playType: playType.trim(),
                         });
                         setErrorMessage("紀錄已成功更新。");
-                        setEditingRecordId(null);
+                        setEditingRecordId(null); // 清除編輯狀態
                     } else {
+                        // 新增紀錄
                         await window.firebase.addDoc(collectionRef, {
                             betAmount: parsedBetAmount,
                             odds: parsedOdds,
                             eventType: eventType.trim(),
                             playType: playType.trim(),
-                            outcome: null,
-                            profitLoss: 0,
+                            outcome: null, // 初始狀態為未決定
+                            profitLoss: 0, // 初始獲利/虧損為 0
                             date: localDateTimeString,
-                            status: 'pending',
-                            timestamp: window.firebase.serverTimestamp ? window.firebase.serverTimestamp() : Date.now(),
+                            status: 'pending', // 初始狀態為待定
+                            timestamp: window.firebase.serverTimestamp(), // 使用伺服器時間戳記
                             addedBy: userId,
                         });
                         setErrorMessage("新增紀錄成功。");
                     }
 
-                    // Also add new eventType/playType to managed lists if they don't exist
+                    // 同步更新賽事類型和玩法設定到 Firestore
                     const eventTypesSettingsRef = window.firebase.collection(db, `artifacts/${appId}/users/${userId}/settings/userSettings/eventTypes`);
                     const playTypesSettingsRef = window.firebase.collection(db, `artifacts/${appId}/users/${userId}/settings/userSettings/playTypes`);
 
@@ -523,6 +548,9 @@
                         await window.firebase.setDoc(window.firebase.doc(playTypesSettingsRef, playType.trim()), { exists: true });
                     }
 
+                    // 清空輸入欄位
+                    setBetAmount('');
+                    setOdds('');
                     setEventType('');
                     setPlayType('');
                 }
@@ -532,6 +560,7 @@
                 }
             };
 
+            // 更新投注狀態 (贏/輸)
             const updateBetStatus = async (id, finalOutcome) => {
                 setErrorMessage('');
                 if (!db || !userId) {
@@ -557,7 +586,7 @@
                             profitLoss: updatedProfitLoss,
                             status: finalOutcome,
                             settledBy: userId,
-                            settledAt: window.firebase.serverTimestamp ? window.firebase.serverTimestamp() : Date.now(),
+                            settledAt: window.firebase.serverTimestamp(), // 使用伺服器時間戳記
                         });
                     } else {
                         setErrorMessage("找不到該紀錄。");
@@ -568,18 +597,20 @@
                 }
             };
 
+            // 進入編輯模式
             const handleEditRecord = (record) => {
                 setBetAmount(record.betAmount.toString());
                 setOdds(record.odds.toString());
                 setEventType(record.eventType);
                 setPlayType(record.playType || '');
-                setEditingRecordId(record.id);
+                setEditingRecordId(record.id); // 設定正在編輯的紀錄 ID
                 setErrorMessage('');
                 setSingleBetResult(null);
                 setTargetProfitAmount('');
                 setRequiredBetForTargetProfit(null);
             };
 
+            // 取消編輯模式
             const handleCancelEdit = () => {
                 setEditingRecordId(null);
                 setBetAmount('');
@@ -592,6 +623,7 @@
                 setRequiredBetForTargetProfit(null);
             };
 
+            // 刪除紀錄
             const handleDeleteRecord = async () => {
                 setErrorMessage('');
                 if (!db || !userId || !recordToDelete) {
@@ -605,7 +637,6 @@
                     const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
                     const docRef = window.firebase.doc(db, `artifacts/${appId}/users/${userId}/bettingHistory`, recordToDelete);
                     await window.firebase.deleteDoc(docRef);
-                    
                     setErrorMessage("紀錄已成功刪除。");
                     setShowConfirmDeleteDialog(false);
                     setRecordToDelete(null);
@@ -630,6 +661,7 @@
                 setErrorMessage('');
                 try {
                     const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+                    // 修正後的路徑
                     const eventTypesRef = window.firebase.collection(db, `artifacts/${appId}/users/${userId}/settings/userSettings/eventTypes`);
                     await window.firebase.setDoc(window.firebase.doc(eventTypesRef, newEventTypeInput.trim()), { exists: true });
                     setNewEventTypeInput('');
@@ -643,6 +675,7 @@
                 setErrorMessage('');
                 try {
                     const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+                    // 修正後的路徑
                     const eventTypesRef = window.firebase.collection(db, `artifacts/${appId}/users/${userId}/settings/userSettings/eventTypes`);
                     await window.firebase.deleteDoc(window.firebase.doc(eventTypesRef, typeToDelete));
                 } catch (error) {
@@ -664,6 +697,7 @@
                 setErrorMessage('');
                 try {
                     const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+                    // 修正後的路徑
                     const playTypesRef = window.firebase.collection(db, `artifacts/${appId}/users/${userId}/settings/userSettings/playTypes`);
                     await window.firebase.setDoc(window.firebase.doc(playTypesRef, newPlayTypeInput.trim()), { exists: true });
                     setNewPlayTypeInput('');
@@ -677,6 +711,7 @@
                 setErrorMessage('');
                 try {
                     const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+                    // 修正後的路徑
                     const playTypesRef = window.firebase.collection(db, `artifacts/${appId}/users/${userId}/settings/userSettings/playTypes`);
                     await window.firebase.deleteDoc(window.firebase.doc(playTypesRef, typeToDelete));
                 } catch (error) {
@@ -685,17 +720,33 @@
                 }
             };
 
+            // 處理更新設定 (包含跑馬燈文字和店家退水百分比)
+            const handleUpdateSettings = async () => {
+                setErrorMessage('');
+                if (!db || !userId) {
+                    setErrorMessage("資料庫未準備好或未登入。");
+                    return;
+                }
+                try {
+                    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+                    const userSettingsDocRef = window.firebase.doc(db, `artifacts/${appId}/users/${userId}/settings/userSettings`);
+                    await window.firebase.setDoc(userSettingsDocRef, {
+                        marqueeText: marqueeText,
+                        shopRebatePercentage: shopRebatePercentage,
+                    }, { merge: true }); // 使用 merge: true 避免覆寫其他欄位
 
+                    setErrorMessage("設定已成功更新。");
+                    setShowSettingsModal(false); // 關閉設定彈出視窗
+                } catch (error) {
+                    console.error("Error updating settings:", error);
+                    setErrorMessage("更新設定失敗。");
+                }
+            };
+
+            // 根據日期和篩選條件過濾投注歷史紀錄
             const filteredBetHistory = React.useMemo(() => {
                 const filtered = betHistory.filter(record => {
-                    const recordDate = new Date(record.date.replace(/-/g, '/'));
-                    const start = startDate ? new Date(startDate) : null;
-                    const end = endDate ? new Date(endDate) : null;
-
-                    if (end) {
-                        end.setHours(23, 59, 59, 999);
-                    }
-
+                    // 確保日期格式正確，並只比較日期部分
                     const recordDateOnly = new Date(record.date.substring(0, 10));
                     const startDateOnly = startDate ? new Date(startDate) : null;
                     const endDateOnly = endDate ? new Date(endDate) : null;
@@ -706,17 +757,17 @@
                     const isMatchingEventType = !selectedEventTypeFilter || record.eventType === selectedEventTypeFilter;
                     const isMatchingPlayType = !selectedPlayTypeFilter || record.playType === selectedPlayTypeFilter;
 
-
                     return isAfterStartDate && isBeforeEndDate && isMatchingEventType && isMatchingPlayType;
                 });
                 // Sort by date in descending order (newest first)
                 return filtered.sort((a, b) => {
-                    const dateA = new Date(a.date.replace(/-/g, '/')).getTime();
-                    const dateB = new Date(b.date.replace(/-/g, '/')).getTime();
-                    return dateB - dateA;
+                    const timeA = a.timestamp ? (a.timestamp.toDate ? a.timestamp.toDate().getTime() : a.timestamp) : 0;
+                    const timeB = b.timestamp ? (b.timestamp.toDate ? b.timestamp.toDate().getTime() : b.timestamp) : 0;
+                    return timeB - timeA; // 降序排列 (最新在最上方)
                 });
             }, [betHistory, startDate, endDate, selectedEventTypeFilter, selectedPlayTypeFilter]);
 
+            // 計算篩選後的總獲利/虧損
             const totalProfitLossFiltered = filteredBetHistory.reduce((sum, record) => {
                 if (record.status === 'win' || record.status === 'loss') {
                     return sum + record.profitLoss;
@@ -724,13 +775,15 @@
                 return sum;
             }, 0).toFixed(2);
 
+            // 計算篩選後的總投注金額
             const totalBetAmountFiltered = filteredBetHistory.reduce((sum, record) => {
                 return sum + record.betAmount;
             }, 0).toFixed(2);
 
+            // 計算店家退水金額
             const shopRebateAmount = (parseFloat(totalBetAmountFiltered) * (shopRebatePercentage / 100)).toFixed(2);
 
-
+            // 計算勝場、敗場和平均勝率
             const { totalWins, totalLosses, averageWinRate } = React.useMemo(() => {
                 let wins = 0;
                 let losses = 0;
@@ -746,7 +799,7 @@
                 return { totalWins: wins, totalLosses: losses, averageWinRate: avgWinRate };
             }, [filteredBetHistory]);
 
-            // Calculate event type counts for display
+            // 計算賽事類型統計
             const eventTypeCounts = React.useMemo(() => {
                 const counts = {};
                 filteredBetHistory.forEach(record => {
@@ -755,7 +808,7 @@
                 return counts;
             }, [filteredBetHistory]);
 
-            // Calculate play type counts for display
+            // 計算玩法類型統計
             const playTypeCounts = React.useMemo(() => {
                 const counts = {};
                 filteredBetHistory.forEach(record => {
@@ -766,7 +819,88 @@
                 return counts;
             }, [filteredBetHistory]);
 
+            // Prepare data for the chart
+            const chartData = React.useMemo(() => {
+                const dailyProfits = {};
+                filteredBetHistory.forEach(record => {
+                    if (record.status === 'win' || record.status === 'loss') {
+                        const date = record.date.substring(0, 10); // Get YYYY-MM-DD
+                        dailyProfits[date] = (dailyProfits[date] || 0) + record.profitLoss;
+                    }
+                });
 
+                // Sort dates and prepare labels and data
+                const sortedDates = Object.keys(dailyProfits).sort();
+                const labels = sortedDates;
+                const data = sortedDates.map(date => dailyProfits[date]);
+
+                return { labels, data };
+            }, [filteredBetHistory]);
+
+            // Effect to draw or update the chart when modal is shown or data changes
+            React.useEffect(() => {
+                let myChart = null;
+                if (showChartModal && chartRef.current) {
+                    const ctx = chartRef.current.getContext('2d');
+
+                    // Destroy existing chart if it exists
+                    if (Chart.getChart(ctx)) {
+                        Chart.getChart(ctx).destroy();
+                    }
+
+                    myChart = new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: chartData.labels,
+                            datasets: [{
+                                label: '每日獲利/虧損 (NTD)',
+                                data: chartData.data,
+                                borderColor: chartData.data.map(value => value >= 0 ? 'rgb(75, 192, 192)' : 'rgb(255, 99, 132)'), // Green for profit, Red for loss
+                                backgroundColor: chartData.data.map(value => value >= 0 ? 'rgba(75, 192, 192, 0.2)' : 'rgba(255, 99, 132, 0.2)'),
+                                tension: 0.1,
+                                fill: false,
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    position: 'top',
+                                },
+                                title: {
+                                    display: true,
+                                    text: '篩選後每日獲利/虧損走勢圖'
+                                }
+                            },
+                            scales: {
+                                x: {
+                                    title: {
+                                        display: true,
+                                        text: '日期'
+                                    }
+                                },
+                                y: {
+                                    title: {
+                                        display: true,
+                                        text: '獲利/虧損 (NTD)'
+                                    },
+                                    beginAtZero: true
+                                }
+                            }
+                        }
+                    });
+                }
+
+                return () => {
+                    if (myChart) {
+                        myChart.destroy();
+                    }
+                };
+            }, [showChartModal, chartData]);
+
+
+            // 重設所有輸入欄位和篩選條件
             const resetFields = () => {
                 setBetAmount('');
                 setOdds('');
@@ -783,6 +917,7 @@
                 setEditingRecordId(null);
             };
 
+            // 導出紀錄為 CSV
             const exportToCsv = () => {
                 if (filteredBetHistory.length === 0) {
                     setErrorMessage('沒有紀錄可以導出。');
@@ -823,9 +958,8 @@
                     csvRows.push(`${type} 玩法場次:,${count}`);
                 });
 
-
                 const csvString = csvRows.join('\n');
-                const blob = new Blob(['\ufeff' + csvString], { type: 'text/csv;charset=utf-8;' });
+                const blob = new Blob(['\ufeff' + csvString], { type: 'text/csv;charset=utf-8;' }); // 加入 BOM 解決中文亂碼
                 const link = document.createElement('a');
                 link.href = URL.createObjectURL(blob);
                 link.download = `運彩紀錄_${new Date().toISOString().split('T')[0]}.csv`;
@@ -835,6 +969,7 @@
                 URL.revokeObjectURL(link.href);
             };
 
+            // 列印紀錄
             const handlePrintRecordsOnly = () => {
                 const printContent = document.getElementById('bet-history-section');
                 if (!printContent) {
@@ -947,6 +1082,7 @@
                     printWindow.document.close();
                     printWindow.focus();
 
+                    // 等待內容載入完成後再列印
                     printWindow.onload = () => {
                         printWindow.print();
                         printWindow.close();
@@ -956,9 +1092,8 @@
                 }
             };
 
-
             return (
-                <div className="min-h-screen bg-gradient-to-br from-red-100 to-white flex flex-col items-center justify-center p-4 font-sans">
+                <div className="min-h-screen bg-gradient-to-br from-red-100 to-white flex flex-col items-center justify-start p-4 font-sans">
                     {/* Display loading state */}
                     {loadingFirebase && (
                         <div className="absolute inset-0 bg-gray-200 bg-opacity-75 flex items-center justify-center z-50">
@@ -967,7 +1102,7 @@
                     )}
 
                     {/* User Info and Sign-in/Sign-out buttons */}
-                    <div className="absolute top-4 left-4 right-4 flex flex-col sm:flex-row justify-between items-start sm:items-center bg-gray-100 text-gray-700 text-xs px-3 py-2 rounded-full shadow-md z-10">
+                    <div className="w-full max-w-7xl flex flex-col sm:flex-row justify-between items-start sm:items-center bg-gray-100 text-gray-700 text-xs px-3 py-2 rounded-full shadow-md z-10 mt-4">
                         {userId ? (
                             <div className="flex items-center">
                                 <span className="font-bold mr-1">登入用戶:</span>
@@ -978,6 +1113,7 @@
                             <span className="font-bold">未登入</span>
                         )}
                         <div className="mt-2 sm:mt-0 flex space-x-2">
+                            {/* 根據登入狀態顯示 Google 登入或登出按鈕 */}
                             {userId && !userEmail ? (
                                 <button
                                     onClick={handleGoogleSignIn}
@@ -1003,19 +1139,35 @@
                                     Google 登入
                                 </button>
                             )}
+                            {/* Settings Button */}
+                            <button
+                                onClick={() => setShowSettingsModal(true)}
+                                className="p-2 rounded-full bg-gray-200 hover:bg-gray-300 text-gray-700 transition duration-200 focus:outline-none focus:ring-2 focus:ring-gray-400"
+                                title="設定"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M11.49 3.17c-.38-1.16-1.47-1.16-1.85 0L9 4.38a1 1 0 01-.78.78l-1.16.38c-1.16.38-1.16 1.47 0 1.85l.38.78a1 1 0 01.78.78l.38 1.16c.38 1.16 1.47 1.16 1.85 0l.78-.38a1 1 0 01.78-.78l1.16-.38c1.16-.38 1.16-1.47 0-1.85l-.38-.78a1 1 0 01-.78-.78l-.38-1.16zM15.5 13a3.5 3.5 0 11-7 0 3.5 3.5 0 017 0zM17.5 12a.5.5 0 00-.5.5v2a.5.5 0 00.5.5h2a.5.5 0 00.5-.5v-2a.5.5 0 00-.5-.5h-2z" clipRule="evenodd" />
+                                </svg>
+                            </button>
+                            {/* New: Statistics Chart Button */}
+                            <button
+                                onClick={() => setShowChartModal(true)}
+                                className="p-2 rounded-full bg-gray-200 hover:bg-gray-300 text-gray-700 transition duration-200 focus:outline-none focus:ring-2 focus:ring-gray-400 ml-2"
+                                title="統計圖表"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM7 9a1 1 0 000 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
+                                </svg>
+                            </button>
                         </div>
-                        {/* Settings Button */}
-                        <button
-                            onClick={() => setShowSettingsModal(true)}
-                            className="absolute top-2 right-4 p-2 rounded-full bg-gray-200 hover:bg-gray-300 text-gray-700 transition duration-200 focus:outline-none focus:ring-2 focus:ring-gray-400"
-                            title="設定"
-                        >
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                <path fillRule="evenodd" d="M11.49 3.17c-.38-1.16-1.47-1.16-1.85 0L9 4.38a1 1 0 01-.78.78l-1.16.38c-1.16.38-1.16 1.47 0 1.85l.38.78a1 1 0 01.78.78l.38 1.16c.38 1.16 1.47 1.16 1.85 0l.78-.38a1 1 0 01.78-.78l1.16-.38c1.16-.38 1.16-1.47 0-1.85l-.38-.78a1 1 0 01-.78-.78l-.38-1.16zM15.5 13a3.5 3.5 0 11-7 0 3.5 3.5 0 017 0zM17.5 12a.5.5 0 00-.5.5v2a.5.5 0 00.5.5h2a.5.5 0 00.5-.5v-2a.5.5 0 00-.5-.5h-2z" clipRule="evenodd" />
-                            </svg>
-                        </button>
                     </div>
 
+                    {/* Marquee Text - Placed directly after user info bar */}
+                    <div className="w-full max-w-7xl mt-4 mb-4">
+                        <marquee className="bg-yellow-100 text-yellow-800 p-2 rounded-lg shadow-md text-sm font-semibold">
+                            {marqueeText}
+                        </marquee>
+                    </div>
 
                     {/* Confirmation Dialog for single record delete */}
                     {showConfirmDeleteDialog && recordToDelete && (
@@ -1063,6 +1215,20 @@
                                     />
                                     <p className="text-xs text-gray-500 mt-1">
                                         用於計算店家退水金額 (總投注金額 x 百分比 / 100)。
+                                    </p>
+                                </div>
+                                {/* New: Marquee Text Management */}
+                                <div className="mb-4 border-t pt-4 mt-4">
+                                    <h3 className="text-lg font-semibold text-gray-800 mb-2">跑馬燈文字內容</h3>
+                                    <textarea
+                                        rows="3"
+                                        value={marqueeText}
+                                        onChange={(e) => setMarqueeText(e.target.value)}
+                                        placeholder="輸入跑馬燈文字內容"
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 ease-in-out text-gray-800"
+                                    ></textarea>
+                                    <p className="text-xs text-gray-500 mt-1">
+                                        此文字將顯示在應用程式頂部的跑馬燈中。
                                     </p>
                                 </div>
                                 {/* New: Event Type Management */}
@@ -1141,7 +1307,7 @@
                                 </div>
                                 <div className="text-center mt-4">
                                     <button
-                                        onClick={() => setShowSettingsModal(false)} // Simply close on "確定更新"
+                                        onClick={handleUpdateSettings} // 呼叫新的更新設定函數
                                         className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition duration-200"
                                     >
                                         確定更新
@@ -1151,9 +1317,28 @@
                         </div>
                     )}
 
+                    {/* Chart Modal */}
+                    {showChartModal && (
+                        <div className="fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center z-50 p-4">
+                            <div className="bg-white p-6 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                                <h2 className="text-2xl font-bold text-gray-900 mb-4 text-center">每日獲利/虧損走勢圖</h2>
+                                <div className="relative h-80 w-full"> {/* Chart container with fixed height */}
+                                    <canvas ref={chartRef}></canvas>
+                                </div>
+                                <div className="text-center mt-4">
+                                    <button
+                                        onClick={() => setShowChartModal(false)}
+                                        className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition duration-200"
+                                    >
+                                        關閉
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
                     {/* Main container for calculator and history, using flexbox for side-by-side layout */}
-                    <div className="flex flex-col md:flex-row md:space-x-8 w-full max-w-7xl mt-20 sm:mt-24">
+                    <div className="flex flex-col md:flex-row md:space-x-8 w-full max-w-7xl mt-4 sm:mt-4">
                         {/* Calculator section (left side) */}
                         <div className="bg-white p-8 rounded-xl shadow-2xl w-full md:w-2/5 mb-8 md:mb-0 transform transition-all duration-300 hover:scale-[1.01]">
                             <h1 className="text-3xl font-extrabold text-gray-900 mb-6 text-center">
@@ -1206,7 +1391,7 @@
                                 >
                                     <option value="">請選擇</option>
                                     {managedEventTypes.map(type => (
-                                        <option key={type} value={type}>{type}</option>
+                                        type && <option key={type} value={type}>{type}</option>
                                     ))}
                                 </select>
                                 {/* Allow typing new event type if not in dropdown (or if empty string selected) */}
@@ -1235,7 +1420,7 @@
                                 >
                                     <option value="">請選擇</option>
                                     {managedPlayTypes.map(type => (
-                                        <option key={type} value={type}>{type}</option>
+                                        type && <option key={type} value={type}>{type}</option>
                                     ))}
                                 </select>
                                 {(!playType || !managedPlayTypes.includes(playType)) && (
@@ -1336,7 +1521,6 @@
                                     </p>
                                 )}
                             </div>
-
                         </div>
 
                         {/* Display area for the last 10 records (right side) */}
