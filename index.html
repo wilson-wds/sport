@@ -44,6 +44,22 @@
 
   <main class="max-w-md mx-auto px-4 space-y-6">
     
+    <!-- 單機資料同步區塊 (預設隱藏，偵測到單機資料時顯示) -->
+    <div id="localSyncBlock" class="hidden bg-amber-50 border border-amber-200 rounded-xl p-4 flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm">
+      <div class="flex items-center gap-3 text-amber-800">
+        <div class="bg-amber-100 p-2 rounded-full shrink-0">
+          <i data-lucide="cloud-upload" class="w-5 h-5 text-amber-600"></i>
+        </div>
+        <div>
+          <p class="text-sm font-bold text-amber-800">發現未同步的單機紀錄</p>
+          <p class="text-xs text-amber-600 mt-0.5">您有保留在此裝置的資料，是否將其上傳至雲端？</p>
+        </div>
+      </div>
+      <button onclick="syncLocalToCloud()" class="w-full sm:w-auto bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium py-2 px-4 rounded-lg transition-colors shadow-sm whitespace-nowrap active:scale-95">
+        <span id="syncBtnText">立即上傳</span>
+      </button>
+    </div>
+
     <!-- 輸入表單 -->
     <section class="bg-white rounded-2xl shadow-sm border border-slate-100 p-5">
       <h2 class="text-lg font-semibold mb-4 flex items-center gap-2">
@@ -221,6 +237,69 @@
       console.warn("雲端環境未就緒，切換為單機模式", error);
     }
 
+    // --- 單機資料同步至雲端功能 ---
+    window.checkLocalSync = function() {
+      if (!useCloud || !currentUser) {
+        document.getElementById('localSyncBlock').classList.add('hidden');
+        return;
+      }
+      
+      const saved = localStorage.getItem('lotteryRecords');
+      if (saved) {
+        try {
+          const localRecords = JSON.parse(saved);
+          if (localRecords && localRecords.length > 0) {
+            document.getElementById('localSyncBlock').classList.remove('hidden');
+            document.getElementById('localSyncBlock').classList.add('flex');
+            lucide.createIcons();
+            return;
+          }
+        } catch(e) {}
+      }
+      document.getElementById('localSyncBlock').classList.add('hidden');
+      document.getElementById('localSyncBlock').classList.remove('flex');
+    };
+
+    window.syncLocalToCloud = async function() {
+      if (!useCloud || !currentUser) return;
+      
+      const saved = localStorage.getItem('lotteryRecords');
+      if (!saved) return;
+      
+      try {
+        const localRecords = JSON.parse(saved);
+        if (!localRecords || localRecords.length === 0) return;
+        
+        // 變更按鈕狀態
+        const btnText = document.getElementById('syncBtnText');
+        btnText.innerText = '上傳中...';
+        
+        // 使用 Promise.all 批次上傳至雲端
+        const uploadPromises = localRecords.map(record => {
+          const recordId = record.id || Date.now().toString() + Math.random().toString(36).substring(7);
+          const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'records', recordId);
+          return setDoc(docRef, {
+            id: recordId,
+            date: record.date,
+            amount: record.amount,
+            createdAt: record.createdAt || Date.now()
+          });
+        });
+        
+        await Promise.all(uploadPromises);
+        
+        // 上傳成功後，清除單機紀錄並隱藏提示區塊
+        localStorage.removeItem('lotteryRecords');
+        window.checkLocalSync();
+        window.customAlert(`太棒了！已成功將 ${localRecords.length} 筆紀錄上傳至雲端`, 'success');
+        
+      } catch(error) {
+        console.error('上傳失敗:', error);
+        window.customAlert('上傳過程發生錯誤，請檢查網路狀態', 'error');
+        document.getElementById('syncBtnText').innerText = '立即上傳';
+      }
+    };
+
     // 核心渲染函式
     window.render = function() {
       // 1. 過濾並排序當月資料
@@ -348,7 +427,7 @@
       onAuthStateChanged(auth, (user) => {
         currentUser = user;
         if (user) {
-          syncStatus.innerText = `已連線 - 雲端同步中`;
+          syncStatus.innerText = `已連線 - 公開資料同步中`;
           statusBadge.classList.replace('bg-slate-500/50', 'bg-indigo-500/50');
           
           const recordsRef = collection(db, 'artifacts', appId, 'public', 'data', 'records');
@@ -357,6 +436,7 @@
           unsubscribeSnapshot = onSnapshot(recordsRef, (snapshot) => {
             records = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             window.render();
+            window.checkLocalSync(); // 載入資料後檢查是否需要單機同步
           }, (error) => {
             console.error("讀取資料失敗:", error);
             window.customAlert('讀取雲端資料發生錯誤', 'error');
@@ -391,7 +471,7 @@
         return;
       }
 
-      const newRecordId = Date.now().toString();
+      const newRecordId = Date.now().toString() + Math.random().toString(36).substring(7);
       const newRecord = {
         id: newRecordId, // 為了相容單機模式，把 id 寫在裡面
         date: inputDate.value,
