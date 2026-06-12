@@ -341,10 +341,10 @@
     onAuthStateChanged(auth, (user) => {
       currentUser = user;
       if (user) {
-        syncStatus.innerText = `已連線 - 雲端同步中 (ID: ${user.uid})`;
+        syncStatus.innerText = `已連線 - 公開資料同步中`;
         
-        // 監聽專屬使用者的雲端資料夾
-        const recordsRef = collection(db, 'artifacts', appId, 'users', user.uid, 'records');
+        // 監聽公開的雲端資料夾 (不再綁定特定的 user.uid)
+        const recordsRef = collection(db, 'artifacts', appId, 'public', 'data', 'records');
         if (unsubscribeSnapshot) unsubscribeSnapshot();
         
         unsubscribeSnapshot = onSnapshot(recordsRef, (snapshot) => {
@@ -392,7 +392,8 @@
       };
 
       try {
-        const docRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'records', newRecordId);
+        // 寫入到公開資料夾
+        const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'records', newRecordId);
         await setDoc(docRef, newRecord);
         
         // 清空金額，保留日期
@@ -415,7 +416,8 @@
     window.deleteRecord = async (id) => {
       if (!currentUser) return;
       try {
-        await deleteDoc(doc(db, 'artifacts', appId, 'users', currentUser.uid, 'records', id));
+        // 從公開資料夾刪除
+        await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'records', id));
         window.customAlert('明細已從雲端刪除', 'success');
       } catch (error) {
         console.error("刪除失敗:", error);
