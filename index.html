@@ -35,9 +35,9 @@
     </div>
     <div class="flex flex-col gap-2 text-sm text-indigo-200">
       <p>專屬設計 for Wilson @ 威爾設計工作室</p>
-      <div class="flex items-center gap-1.5 bg-indigo-500/50 w-fit px-2 py-1 rounded-md text-xs">
+      <div class="flex items-center gap-1.5 bg-indigo-500/50 w-fit px-2 py-1 rounded-md text-xs transition-colors" id="statusBadge">
         <i data-lucide="cloud-sync" class="w-3.5 h-3.5"></i>
-        <span id="syncStatus">連線中...</span>
+        <span id="syncStatus">系統啟動中...</span>
       </div>
     </div>
   </header>
@@ -168,27 +168,15 @@
       document.body.appendChild(div);
       lucide.createIcons();
       
-      // 動畫進場
       requestAnimationFrame(() => {
         div.classList.remove('opacity-0', 'translate-y-[-20px]');
       });
 
-      // 動畫退場與移除
       setTimeout(() => {
         div.classList.add('opacity-0', 'translate-y-[-20px]');
         setTimeout(() => div.remove(), 300)
       }, 3000);
     };
-
-    // Firebase 雲端環境變數
-    const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
-    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-    const initialToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-
-    // 初始化 Firebase
-    const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    const db = getFirestore(app);
 
     // 取得今天日期的 YYYY-MM-DD
     const getTodayString = () => {
@@ -197,21 +185,41 @@
       return (new Date(Date.now() - tzOffset)).toISOString().split('T')[0];
     };
 
-    // 狀態變數 (改由雲端接管)
+    // 狀態變數
     let records = [];
     let viewMonth = getTodayString().substring(0, 7);
     let expandedDates = new Set();
     let currentUser = null;
     let unsubscribeSnapshot = null;
+    let useCloud = false; // 是否使用雲端同步的關鍵變數
+    let app, auth, db;
 
     // DOM 元素綁定
     const form = document.getElementById('recordForm');
     const inputDate = document.getElementById('inputDate');
     const inputAmount = document.getElementById('inputAmount');
     const syncStatus = document.getElementById('syncStatus');
+    const statusBadge = document.getElementById('statusBadge');
     
-    // 初始化日期為今天
     inputDate.value = getTodayString();
+
+    // --- 安全初始化 Firebase (防止環境變數遺失造成當機) ---
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+    const initialToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+    try {
+      if (typeof __firebase_config !== 'undefined') {
+        const configObj = typeof __firebase_config === 'string' ? JSON.parse(__firebase_config) : __firebase_config;
+        if (configObj && Object.keys(configObj).length > 0) {
+          app = initializeApp(configObj);
+          auth = getAuth(app);
+          db = getFirestore(app);
+          useCloud = true;
+        }
+      }
+    } catch (error) {
+      console.warn("雲端環境未就緒，切換為單機模式", error);
+    }
 
     // 核心渲染函式
     window.render = function() {
@@ -241,7 +249,7 @@
       document.getElementById('payoutDate').innerText = payoutDateStr;
       document.getElementById('recordCount').innerText = `共 ${filteredRecords.length} 筆`;
 
-      // 5. 將資料按日期分組 (每日小計邏輯)
+      // 5. 將資料按日期分組
       const groupedData = {};
       filteredRecords.forEach(record => {
         if (!groupedData[record.date]) {
@@ -252,10 +260,9 @@
         groupedData[record.date].totalRebate += Math.floor(record.amount * 0.025);
       });
 
-      // 取得排序後的日期清單 (由新到舊)
       const sortedDates = Object.keys(groupedData).sort((a, b) => new Date(b) - new Date(a));
 
-      // 6. 更新列表 (包含小計與折疊明細功能)
+      // 6. 更新列表
       const listContainer = document.getElementById('recordList');
       if (sortedDates.length === 0) {
         listContainer.innerHTML = `
@@ -273,7 +280,6 @@
 
           listHTML += `
             <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm transition-all">
-              <!-- 每日小計 -->
               <button onclick="toggleDate('${date}')" class="w-full flex justify-between items-center p-3 bg-slate-50 hover:bg-slate-100 transition-colors text-left focus:outline-none">
                 <div class="flex items-center gap-3">
                   <div class="p-1.5 bg-white rounded-lg shadow-sm border border-slate-100 text-slate-500">
@@ -287,7 +293,6 @@
                 </div>
               </button>
               
-              <!-- 明細列表 -->
               <div class="${detailClass} border-t border-slate-100 bg-white">
                 <ul class="divide-y divide-slate-50">
           `;
@@ -322,61 +327,63 @@
       }
     }
 
-    // --- Firebase 雲端同步與驗證邏輯 ---
-    const initAuth = async () => {
-      try {
-        if (initialToken) {
-          await signInWithCustomToken(auth, initialToken);
-        } else {
-          await signInAnonymously(auth);
+    // --- 連線邏輯 ---
+    if (useCloud) {
+      const initAuth = async () => {
+        try {
+          if (initialToken) {
+            await signInWithCustomToken(auth, initialToken);
+          } else {
+            await signInAnonymously(auth);
+          }
+        } catch (error) {
+          console.error("驗證失敗:", error);
+          syncStatus.innerText = "雲端連線失敗 (使用單機)";
+          statusBadge.classList.replace('bg-indigo-500/50', 'bg-red-500/50');
+          useCloud = false; // 退回單機模式
+          loadLocalRecords();
         }
-      } catch (error) {
-        console.error("驗證失敗:", error);
-        syncStatus.innerText = "連線失敗";
-        syncStatus.parentElement.classList.replace('bg-indigo-500/50', 'bg-red-500/50');
-        window.customAlert('系統連線失敗，無法同步', 'error');
-      }
-    };
+      };
 
-    onAuthStateChanged(auth, (user) => {
-      currentUser = user;
-      if (user) {
-        syncStatus.innerText = `已連線 - 公開資料同步中`;
-        
-        // 監聽公開的雲端資料夾 (不再綁定特定的 user.uid)
-        const recordsRef = collection(db, 'artifacts', appId, 'public', 'data', 'records');
-        if (unsubscribeSnapshot) unsubscribeSnapshot();
-        
-        unsubscribeSnapshot = onSnapshot(recordsRef, (snapshot) => {
-          records = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-          window.render();
-        }, (error) => {
-          console.error("讀取資料失敗:", error);
-          window.customAlert('讀取雲端資料發生錯誤', 'error');
-        });
-      } else {
-        syncStatus.innerText = "未連線";
-        if (unsubscribeSnapshot) {
-          unsubscribeSnapshot();
-          unsubscribeSnapshot = null;
+      onAuthStateChanged(auth, (user) => {
+        currentUser = user;
+        if (user) {
+          syncStatus.innerText = `已連線 - 雲端同步中`;
+          statusBadge.classList.replace('bg-slate-500/50', 'bg-indigo-500/50');
+          
+          const recordsRef = collection(db, 'artifacts', appId, 'public', 'data', 'records');
+          if (unsubscribeSnapshot) unsubscribeSnapshot();
+          
+          unsubscribeSnapshot = onSnapshot(recordsRef, (snapshot) => {
+            records = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            window.render();
+          }, (error) => {
+            console.error("讀取資料失敗:", error);
+            window.customAlert('讀取雲端資料發生錯誤', 'error');
+          });
         }
-        records = [];
-        window.render();
-      }
-    });
-
-    // 啟動身分驗證程序
-    initAuth();
-
-    // 新增紀錄 (寫入 Firestore)
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
+      });
       
-      if (!currentUser) {
-        window.customAlert('系統尚未連線到雲端，請稍候');
-        return;
-      }
+      initAuth();
+    } else {
+      // 本地單機模式
+      syncStatus.innerText = "單機模式 (僅存此裝置)";
+      statusBadge.classList.replace('bg-indigo-500/50', 'bg-slate-500/50');
+      loadLocalRecords();
+    }
 
+    function loadLocalRecords() {
+      const saved = localStorage.getItem('lotteryRecords');
+      if (saved) {
+        try { records = JSON.parse(saved); } catch(e){}
+      }
+      window.render();
+    }
+
+    // 新增紀錄
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault(); // 確保攔截表單的網頁重整
+      
       const amount = parseFloat(inputAmount.value);
       
       if (!inputDate.value || isNaN(amount) || amount <= 0) {
@@ -386,42 +393,67 @@
 
       const newRecordId = Date.now().toString();
       const newRecord = {
+        id: newRecordId, // 為了相容單機模式，把 id 寫在裡面
         date: inputDate.value,
         amount: amount,
         createdAt: Date.now()
       };
 
-      try {
-        // 寫入到公開資料夾
-        const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'records', newRecordId);
-        await setDoc(docRef, newRecord);
+      if (useCloud) {
+        // 雲端儲存
+        if (!currentUser) {
+          window.customAlert('系統尚未連線到雲端，請稍候再試');
+          return;
+        }
+
+        try {
+          const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'records', newRecordId);
+          await setDoc(docRef, newRecord);
+          
+          inputAmount.value = '';
+          window.customAlert('已同步新增至雲端！', 'success');
+          
+          const recordMonth = inputDate.value.substring(0, 7);
+          if (recordMonth !== viewMonth) {
+            viewMonth = recordMonth;
+            window.render();
+          }
+        } catch (error) {
+          console.error("新增失敗:", error);
+          window.customAlert("新增失敗，請檢查網路狀態");
+        }
+      } else {
+        // 單機儲存
+        records.push(newRecord);
+        localStorage.setItem('lotteryRecords', JSON.stringify(records));
         
-        // 清空金額，保留日期
         inputAmount.value = '';
-        window.customAlert('已同步新增至雲端！', 'success');
+        window.customAlert('已新增至單機紀錄！', 'success');
         
-        // 自動切換到輸入的月份
         const recordMonth = inputDate.value.substring(0, 7);
         if (recordMonth !== viewMonth) {
           viewMonth = recordMonth;
-          window.render();
         }
-      } catch (error) {
-        console.error("新增失敗:", error);
-        window.customAlert("新增失敗，請檢查網路狀態");
+        window.render();
       }
     });
 
-    // 刪除紀錄 (從 Firestore 刪除)
+    // 刪除紀錄
     window.deleteRecord = async (id) => {
-      if (!currentUser) return;
-      try {
-        // 從公開資料夾刪除
-        await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'records', id));
-        window.customAlert('明細已從雲端刪除', 'success');
-      } catch (error) {
-        console.error("刪除失敗:", error);
-        window.customAlert("刪除失敗，請檢查網路狀態");
+      if (useCloud) {
+        if (!currentUser) return;
+        try {
+          await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'records', id));
+          window.customAlert('明細已從雲端刪除', 'success');
+        } catch (error) {
+          console.error("刪除失敗:", error);
+          window.customAlert("刪除失敗，請檢查網路狀態");
+        }
+      } else {
+        records = records.filter(r => r.id !== id);
+        localStorage.setItem('lotteryRecords', JSON.stringify(records));
+        window.customAlert('明細已刪除', 'success');
+        window.render();
       }
     };
 
